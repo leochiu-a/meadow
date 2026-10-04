@@ -119,6 +119,9 @@ export function createRobot(x, z, tour) {
       clickTarget = new THREE.Vector2(point.x, point.z)
       idle = 0
     },
+    get heading() {
+      return heading
+    },
     get speed() {
       return speed / SPEED
     },

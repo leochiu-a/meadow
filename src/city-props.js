@@ -178,24 +178,28 @@ const canvasTexture = (w, h, draw) => {
   return tex
 }
 
-// Lintel sign over the mouth: station name in Chinese and English, exit number in a disc.
+// Station band across the canopy front: Taipei Metro's green-to-blue band for Ximen (green
+// and blue lines), name in Chinese and English, the exit number on a yellow square.
 function exitSignTexture(number) {
-  return canvasTexture(512, 128, (ctx) => {
-    ctx.fillStyle = '#34383d'
-    ctx.fillRect(0, 0, 512, 128)
-    ctx.fillStyle = '#f2f2ee'
+  return canvasTexture(1024, 128, (ctx) => {
+    const band = ctx.createLinearGradient(0, 0, 1024, 0)
+    band.addColorStop(0, '#2f8f5a')
+    band.addColorStop(0.45, '#2a7f8a')
+    band.addColorStop(1, '#1f5fae')
+    ctx.fillStyle = band
+    ctx.fillRect(0, 0, 1024, 128)
+    ctx.fillStyle = '#f4f4f0'
     ctx.textBaseline = 'middle'
-    ctx.font = '800 52px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
-    ctx.fillText('西門站', 30, 50)
-    ctx.font = '600 26px "Helvetica Neue", Arial, sans-serif'
-    ctx.fillText('Ximen', 34, 100)
-    ctx.beginPath()
-    ctx.arc(440, 64, 44, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = '#34383d'
-    ctx.font = '900 66px "Helvetica Neue", Arial, sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillText(String(number), 440, 68)
+    ctx.font = '800 60px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
+    ctx.fillText('西門站', 470, 52)
+    ctx.font = '600 22px "Helvetica Neue", Arial, sans-serif'
+    ctx.fillText('XIMEN STATION', 470, 104)
+    ctx.fillStyle = '#f2c230'
+    ctx.fillRect(880, 10, 108, 108)
+    ctx.fillStyle = '#1d1d1b'
+    ctx.font = '900 92px "Helvetica Neue", Arial, sans-serif'
+    ctx.fillText(String(number), 934, 70)
   })
 }
 
@@ -223,116 +227,326 @@ function totemTexture(number) {
 }
 
 /**
- * Taipei-style MRT exit: granite knee walls, glass sides on a white steel frame, a barrel
- * roof sloping down toward the back, stairs and an escalator dropping into the dark, the
- * station sign over the mouth and an exit totem beside it. Long axis along local z, the
- * mouth at +z. Decades on, most of the glass is gone and the roof is torn at the back.
+ * Taipei MRT exit in the Ximen manner: a glass pavilion under a thick white canopy with
+ * rounded corners overhanging the front, the station band along its fascia, broad granite
+ * steps up to the mouth, stairs into the dark inside and an exit totem beside it. Long axis
+ * along local z, the mouth at +z. Decades on, most glass is gone and one canopy corner sags.
  */
 export function mrtExit(x, z, rotY, { number = 6, length = 9, width = 4.6 } = {}) {
   const g = new THREE.Group()
   const W = width
   const L = length
-  const wall = 1.0
-  const spring = 2.6
-  const white = cityMat('#d9dcd8', { kind: 'metal', grime: 1.2 })
+  const H = 3.4
+  const white = cityMat('#e2e3de', { kind: 'paint', grime: 1.2 })
+  const steel = cityMat('#b9bcb8', { kind: 'metal' })
   const granite = cityMat('#a29d93', { kind: 'concrete' })
   const glass = withCutaway(new THREE.MeshStandardMaterial({ color: '#a9c2c8', transparent: true, opacity: 0.3, roughness: 0.1, metalness: 0.2 }))
 
-  // Knee walls of granite on both sides and the back.
-  for (const sx of [-1, 1]) {
-    const side = rbox(0.4, wall, L, 0.04, granite)
-    side.position.set((sx * W) / 2, wall / 2, 0)
-    g.add(side)
+  // Granite plinth, and broad steps up to it at the mouth.
+  const plinth = rbox(W, 0.45, L, 0.04, granite)
+  plinth.position.y = 0.225
+  g.add(plinth)
+  for (let i = 0; i < 3; i++) {
+    const step = rbox(W + 1.6, 0.15, 0.45, 0.02, granite)
+    step.position.set(0, 0.075 + i * 0.15, L / 2 + 1.35 - i * 0.45)
+    g.add(step)
   }
-  const backWall = rbox(W, wall, 0.4, 0.04, granite)
-  backWall.position.set(0, wall / 2, -L / 2)
-  g.add(backWall)
-
-  // Steel posts on the knee walls, glass panes between (most broken out).
-  const bays = Math.max(3, Math.round(L / 1.8))
+  // Glass walls on a steel grid along the sides and back; the front stands open.
+  const bays = Math.max(3, Math.round(L / 1.6))
+  const pane = (px, pz, w, ry) => {
+    if (rand() < 0.7) return
+    const p = mesh(new THREE.BoxGeometry(w - 0.1, H - 0.6, 0.02), glass)
+    p.position.set(px, 0.45 + (H - 0.45) / 2, pz)
+    p.rotation.y = ry
+    p.userData.dynamic = true
+    g.add(p)
+  }
   for (const sx of [-1, 1]) {
     for (let k = 0; k <= bays; k++) {
       const pz = -L / 2 + (k / bays) * L
-      const post = mesh(new THREE.BoxGeometry(0.1, spring - wall, 0.1), white)
-      post.position.set((sx * W) / 2, (wall + spring) / 2, pz)
+      const post = mesh(new THREE.BoxGeometry(0.1, H - 0.45, 0.1), steel)
+      post.position.set((sx * W) / 2, 0.45 + (H - 0.45) / 2, pz)
       g.add(post)
-      if (k < bays && rand() < 0.3) {
-        const pane = mesh(new THREE.BoxGeometry(0.02, spring - wall - 0.1, L / bays - 0.12), glass)
-        pane.position.set((sx * W) / 2, (wall + spring) / 2, pz + L / bays / 2)
-        pane.userData.dynamic = true
-        g.add(pane)
-      }
+      if (k < bays) pane((sx * W) / 2, pz + L / bays / 2, L / bays, Math.PI / 2)
     }
-    const rail = mesh(new THREE.BoxGeometry(0.12, 0.12, L), white)
-    rail.position.set((sx * W) / 2, spring, 0)
-    g.add(rail)
   }
-
-  // Barrel roof on ribs, its skin torn away over the back third.
-  const r = W / 2 + 0.25
-  const skin = mesh(
-    // Half a tube (theta -90°..90° is the +z half) turned so that half is the top, axis along z.
-    new THREE.CylinderGeometry(r, r, L * 0.68, 20, 1, true, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2),
-    cityMat('#c9cdca', { kind: 'metal', grime: 1.3, side: THREE.DoubleSide }),
-  )
-  skin.scale.y = 0.45
-  skin.position.set(0, spring, L / 2 - (L * 0.68) / 2)
-  g.add(skin)
-  for (let k = 0; k <= bays; k++) {
-    const rib = mesh(new THREE.TorusGeometry(r, 0.06, 4, 16, Math.PI), white)
-    rib.scale.y = 0.45
-    rib.position.set(0, spring, -L / 2 + (k / bays) * L)
-    g.add(rib)
+  for (let k = 1; k < 3; k++) {
+    const post = mesh(new THREE.BoxGeometry(0.1, H - 0.45, 0.1), steel)
+    post.position.set(-W / 2 + (k / 3) * W, 0.45 + (H - 0.45) / 2, -L / 2)
+    g.add(post)
   }
+  pane(0, -L / 2, W, 0)
+  // The canopy: a thick white slab with rounded corners, overhanging the front and sides,
+  // its front-left corner broken off and hanging.
+  const cw = W + 1.6
+  const cl = L + 1.2
+  const cr = Math.min(1.6, cw / 2 - 0.1)
+  const plan = new THREE.Shape()
+  plan.moveTo(-cw / 2 + cr, -cl / 2)
+  plan.lineTo(cw / 2 - cr, -cl / 2)
+  plan.absarc(cw / 2 - cr, -cl / 2 + cr, cr, -Math.PI / 2, 0, false)
+  plan.lineTo(cw / 2, cl / 2 - cr)
+  plan.absarc(cw / 2 - cr, cl / 2 - cr, cr, 0, Math.PI / 2, false)
+  plan.lineTo(-cw / 2 + cr, cl / 2)
+  plan.absarc(-cw / 2 + cr, cl / 2 - cr, cr, Math.PI / 2, Math.PI, false)
+  plan.lineTo(-cw / 2, -cl / 2 + cr)
+  plan.absarc(-cw / 2 + cr, -cl / 2 + cr, cr, Math.PI, Math.PI * 1.5, false)
+  const canopy = mesh(new THREE.ExtrudeGeometry(plan, { depth: 0.5, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.06, bevelSegments: 2, curveSegments: 10 }).rotateX(Math.PI / 2), white)
+  canopy.position.set(0, H + 0.55, 0.5)
+  g.add(canopy)
+  const broken = rbox(1.6, 0.5, 1.6, 0.22, white)
+  broken.position.set(-W / 2 - 0.2, H - 0.25, L / 2 + 0.6)
+  broken.rotation.set(0.35, 0.2, -0.45)
+  g.add(broken)
+  const signFace = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: exitSignTexture(number), roughness: 0.6 }), { kind: 'paint', fade: 0.3 }))
+  const band = mesh(new THREE.BoxGeometry(W + 1.2, 0.5, 0.06), [white, white, white, white, signFace, white])
+  band.position.set(0.3, H + 0.27, L / 2 + 1.12)
+  g.add(band)
 
-  // Stairs and an escalator dropping into darkness, under the roof.
-  const pit = mesh(new THREE.BoxGeometry(W - 0.8, 0.04, L - 0.8), cityMat('#0c0b0a', { kind: 'paint', grime: 0.1 }))
-  pit.position.y = 0.025
+  // Stairs down into the dark.
+  const pit = mesh(new THREE.BoxGeometry(W - 0.6, 0.02, L - 0.8), cityMat('#0c0b0a', { kind: 'paint', grime: 0.1 }))
+  pit.position.y = 0.46
   g.add(pit)
   const stepMat = cityMat('#6f6b64', { kind: 'concrete' })
   for (let i = 0; i < 7; i++) {
-    const step = mesh(new THREE.BoxGeometry(W * 0.48, 0.05, 0.32), stepMat)
-    step.position.set(-W * 0.18, 0.06, L / 2 - 0.9 - i * 0.42)
+    const step = mesh(new THREE.BoxGeometry(W * 0.5, 0.04, 0.3), stepMat)
+    step.position.set(-W * 0.16, 0.49, L / 2 - 0.9 - i * ((L - 2) / 7))
     g.add(step)
   }
   const rubber = cityMat('#1b1c1e', { kind: 'paint', grime: 0.5 })
-  for (const ex of [W * 0.12, W * 0.38]) {
-    const handrail = mesh(new THREE.BoxGeometry(0.08, 0.9, L * 0.6), rubber)
-    handrail.position.set(ex, 0.45, L / 2 - 0.6 - L * 0.3)
-    handrail.rotation.x = -0.12
+  for (const ex of [W * 0.14, W * 0.38]) {
+    const handrail = mesh(new THREE.BoxGeometry(0.08, 0.9, L * 0.55), rubber)
+    handrail.position.set(ex, 0.9, L / 2 - 0.6 - L * 0.28)
+    handrail.rotation.x = -0.1
     g.add(handrail)
   }
 
-  // Station sign over the mouth, hanging askew off one bolt.
-  const signFace = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: exitSignTexture(number), roughness: 0.6 }), { kind: 'paint', fade: 0.25 }))
-  const edge = cityMat('#34383d', { kind: 'paint' })
-  const sign = mesh(new THREE.BoxGeometry(W - 0.2, 0.9, 0.14), [edge, edge, edge, edge, signFace, edge])
-  sign.position.set(0, spring + 0.55, L / 2 + 0.08)
-  sign.rotation.z = 0.05
-  g.add(sign)
-
   // Exit totem beside the mouth.
+  const edge = cityMat('#34383d', { kind: 'paint' })
   const totemFace = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: totemTexture(number), roughness: 0.6 }), { kind: 'paint', fade: 0.25 }))
   const head = mesh(new THREE.BoxGeometry(0.55, 1.1, 0.18), [edge, edge, edge, edge, totemFace, totemFace])
-  head.position.set(W / 2 + 0.9, 2.6, L / 2 - 0.2)
+  head.position.set(W / 2 + 1.6, 2.6, L / 2 + 1.6)
   const pole = mesh(new THREE.BoxGeometry(0.16, 2.1, 0.16), edge)
-  pole.position.set(W / 2 + 0.9, 1.05, L / 2 - 0.2)
+  pole.position.set(W / 2 + 1.6, 1.05, L / 2 + 1.6)
   g.add(head, pole)
 
   g.position.set(x, 0, z)
   g.rotation.y = rotY
   const c = Math.cos(rotY)
   const s = Math.sin(rotY)
-  // The walls block.
-  for (const sx of [-1, 1]) {
-    const ox = (sx * W) / 2
-    addSegment(x + ox * c - (L / 2) * s, z - ox * s - (L / 2) * c, x + ox * c + (L / 2) * s, z - ox * s + (L / 2) * c, 0.3)
-  }
-  addSegment(x - (W / 2) * c - (L / 2) * s, z + (W / 2) * s - (L / 2) * c, x + (W / 2) * c - (L / 2) * s, z - (W / 2) * s - (L / 2) * c, 0.3)
-  addCircle(x + (W / 2 + 0.9) * c + (L / 2 - 0.2) * s, z - (W / 2 + 0.9) * s + (L / 2 - 0.2) * c, 0.25)
-  // The stairwell itself: no one walks down it and nothing grows over it.
-  addSegment(x - (L / 2 - 0.6) * s, z - (L / 2 - 0.6) * c, x + (L / 2 - 0.6) * s, z + (L / 2 - 0.6) * c, W / 2 - 0.4)
+  // The pavilion blocks walkers and keeps grass off its floor.
+  addSegment(x - (L / 2) * s, z - (L / 2) * c, x + (L / 2) * s, z + (L / 2) * c, W / 2 + 0.1)
+  addCircle(x + (W / 2 + 1.6) * c + (L / 2 + 1.6) * s, z - (W / 2 + 1.6) * s + (L / 2 + 1.6) * c, 0.25)
   return g
+}
+
+// Plaza lamp from the Exit 6 square: a tall pole hung with disc lamps at staggered heights
+// and angles. Leaning ones have had their footings heaved by roots.
+export function discLamp(x, z, lean = 0) {
+  const g = new THREE.Group()
+  const pole = cityMat('#8e9294', { kind: 'metal' })
+  const disc = cityMat('#d8dad6', { kind: 'paint', grime: 1.3 })
+  g.add(mesh(new THREE.CylinderGeometry(0.07, 0.11, 8, 8).translate(0, 4, 0), pole))
+  for (let i = 0; i < 5; i++) {
+    const a = i * 2.3 + rand()
+    const y = 4.4 + i * 0.75
+    const arm = mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.7, 5).rotateZ(Math.PI / 2).translate(0.35, 0, 0), pole)
+    arm.position.y = y
+    arm.rotation.y = a
+    g.add(arm)
+    const lamp = mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.06, 18), disc)
+    lamp.position.set(Math.cos(a) * 0.75, y, -Math.sin(a) * 0.75)
+    lamp.rotation.set(range(-0.5, 0.5), a, range(0.3, 0.7))
+    g.add(lamp)
+  }
+  g.position.set(x, 0, z)
+  g.rotation.set(lean, rand() * 6, 0, 'YXZ')
+  addCircle(x, z, 0.2)
+  return g
+}
+
+// Hanzhong Street's tall yellow L-poles: an upright with an arm, a banner hanging off it.
+export function mallPole(x, z, rotY, { bent = 0, fallen = false } = {}) {
+  const g = new THREE.Group()
+  const yellow = cityMat('#e0a62a', { kind: 'paint', grime: 1.3, fade: 0.25 })
+  const post = mesh(new THREE.BoxGeometry(0.22, 6.5, 0.22).translate(0, 3.25, 0), yellow)
+  const arm = mesh(new THREE.BoxGeometry(1.6, 0.18, 0.18).translate(0.8, 6.4, 0), yellow)
+  g.add(post, arm)
+  const banner = mesh(
+    new THREE.PlaneGeometry(0.8, 2.2).translate(1.2, 5.1, 0),
+    cityMat(pick(['#3a7ac0', '#c84a8a', '#3fa57a', '#d8b03a']), { kind: 'paint', fade: 0.45, side: THREE.DoubleSide }),
+  )
+  banner.rotation.z = range(-0.08, 0.08)
+  g.add(banner)
+  if (fallen) {
+    g.rotation.set(0, rotY, Math.PI / 2 - 0.06, 'YXZ')
+    g.position.set(x, 0.12, z)
+    return g
+  }
+  g.rotation.set(0, rotY, bent, 'YXZ')
+  g.position.set(x, 0, z)
+  addCircle(x, z, 0.2)
+  return g
+}
+
+// ---------------------------------------------------------------- New World Building
+
+// Lettering for a facade sign: white strokes on a dark panel, or the reverse.
+function letteringTexture(text, { bg = '#2a2c30', fg = '#f2f0ea', vertical = false } = {}) {
+  const chars = [...text]
+  const w = vertical ? 128 : 128 * chars.length
+  const h = vertical ? 128 * chars.length : 128
+  return canvasTexture(w, h, (ctx) => {
+    ctx.fillStyle = bg
+    ctx.fillRect(0, 0, w, h)
+    ctx.fillStyle = fg
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = '800 96px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
+    chars.forEach((ch, i) => (vertical ? ctx.fillText(ch, 64, 64 + i * 128) : ctx.fillText(ch, 64 + i * 128, 66)))
+  })
+}
+
+/**
+ * The New World Building's corner tower (新世界大樓): a glass drum braced with stacked
+ * X-frames, standing at the footprint corner nearest `toward`, with the building's name
+ * and the cinema sign on the facades either side. `height` is the roof line.
+ */
+export function newWorldTower(pts, height, toward) {
+  const g = new THREE.Group()
+  const corner = pts.reduce((a, p) => (Math.hypot(p[0] - toward[0], p[1] - toward[1]) < Math.hypot(a[0] - toward[0], a[1] - toward[1]) ? p : a))
+  const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length
+  const cz = pts.reduce((a, p) => a + p[1], 0) / pts.length
+  const inX = cx - corner[0]
+  const inZ = cz - corner[1]
+  const inLen = Math.hypot(inX, inZ)
+  // Centred just outside the corner, so the drum stands proud of both facades.
+  const r = 5
+  const ox = corner[0] - (inX / inLen) * 1
+  const oz = corner[1] - (inZ / inLen) * 1
+  const H = height + 2
+  const white = cityMat('#e8e6de', { kind: 'paint', grime: 1.1 })
+  const frame = cityMat('#c9ccc8', { kind: 'metal' })
+  const glass = withCutaway(new THREE.MeshStandardMaterial({ color: '#7f97a0', transparent: true, opacity: 0.45, roughness: 0.15, metalness: 0.3, side: THREE.DoubleSide }))
+  // Glass drum, some facets blown out.
+  const facets = 12
+  for (let i = 0; i < facets; i++) {
+    if (rand() < 0.3) continue
+    const a0 = (i / facets) * Math.PI * 2
+    const pane = mesh(new THREE.CylinderGeometry(r, r, H - 4.4, 2, 1, true, a0, (Math.PI * 2) / facets), glass)
+    pane.position.set(ox, 4.4 + (H - 4.4) / 2, oz)
+    pane.userData.dynamic = true
+    g.add(pane)
+  }
+  // Floor rings and the X-bracing between them, two storeys to a bay.
+  const bay = 6.4
+  for (let y = 4.4; y <= H + 0.01; y += bay / 2) {
+    const ring = mesh(new THREE.TorusGeometry(r + 0.08, 0.12, 4, 32).rotateX(Math.PI / 2), frame)
+    ring.position.set(ox, y, oz)
+    g.add(ring)
+  }
+  for (let y = 4.4; y + bay <= H + 0.01; y += bay) {
+    for (let i = 0; i < facets; i++) {
+      const a = ((i + 0.5) / facets) * Math.PI * 2
+      const half = (Math.PI * 2) / facets
+      for (const dir of [-1, 1]) {
+        const a0 = a - half / 2
+        const a1 = a + half / 2
+        const p0 = new THREE.Vector3(ox + Math.sin(a0) * (r + 0.12), y + (dir > 0 ? 0 : bay), oz + Math.cos(a0) * (r + 0.12))
+        const p1 = new THREE.Vector3(ox + Math.sin(a1) * (r + 0.12), y + (dir > 0 ? bay : 0), oz + Math.cos(a1) * (r + 0.12))
+        const len = p0.distanceTo(p1)
+        const bar = mesh(new THREE.BoxGeometry(0.16, len, 0.16), frame)
+        bar.position.copy(p0).add(p1).multiplyScalar(0.5)
+        bar.lookAt(p1)
+        bar.rotateX(Math.PI / 2)
+        g.add(bar)
+      }
+    }
+  }
+  // Solid base storey and a cap.
+  const base = mesh(new THREE.CylinderGeometry(r + 0.3, r + 0.3, 4.4, 32), white)
+  base.position.set(ox, 2.2, oz)
+  const cap = mesh(new THREE.CylinderGeometry(r + 0.5, r + 0.5, 0.6, 32), white)
+  cap.position.set(ox, H + 0.3, oz)
+  g.add(base, cap)
+
+  // Name and cinema signs on the facades running away from the corner.
+  const i = pts.indexOf(corner)
+  const neighbours = [pts[(i + 1) % pts.length], pts[(i - 1 + pts.length) % pts.length]]
+  neighbours.forEach((nb, k) => {
+    const dx = nb[0] - corner[0]
+    const dz = nb[1] - corner[1]
+    const len = Math.hypot(dx, dz)
+    let nx = dz / len
+    let nz = -dx / len
+    if (nx * (corner[0] - cx) + nz * (corner[1] - cz) < 0) {
+      nx = -nx
+      nz = -nz
+    }
+    const at = r + 3.5
+    const sx = corner[0] + (dx / len) * at + nx * 0.12
+    const sz = corner[1] + (dz / len) * at + nz * 0.12
+    const text = k === 0 ? '新世界大樓' : '真美善劇院'
+    const tex = letteringTexture(text, k === 0 ? { bg: '#e8e6de', fg: '#2a6a4a' } : { bg: '#2a2c30', fg: '#f2d07a' })
+    const sign = mesh(new THREE.PlaneGeometry(text.length * 1.1, 1.1), withCutaway(weathered(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }), { kind: 'paint', fade: 0.3 })))
+    sign.position.set(sx + (dx / len) * text.length * 0.55, k === 0 ? 7.5 : 5, sz + (dz / len) * text.length * 0.55)
+    sign.rotation.y = Math.atan2(nx, nz)
+    sign.userData.dynamic = true
+    g.add(sign)
+  })
+  addCircle(ox, oz, r + 0.4)
+  return g
+}
+
+// ---------------------------------------------------------------- billboards
+
+const AD_COPY = [
+  ['全館清倉', '1折起', '#c8302c', '#ffffff'],
+  ['明天的我', '會更好', '#e8e2d6', '#c8302c'],
+  ['換季特賣', 'SALE 70%', '#1f3f7a', '#f2c230'],
+  ['西門夜未眠', '新片熱映', '#1a1a1e', '#f0e6c8'],
+  ['白到發光', '美肌新上市', '#f0c8d2', '#5a2a3a'],
+  ['ZUMBA 舞蹈', '體驗課免費', '#2e8a5a', '#ffffff'],
+  ['HOT 珍奶', '第二杯半價', '#f2c230', '#3a2414'],
+]
+
+// A giant facade ad, sun-bleached and torn: the bottom edge shredded away to show the wall.
+function adTexture() {
+  const [big, small, bg, fg] = pick(AD_COPY)
+  return canvasTexture(256, 512, (ctx) => {
+    ctx.fillStyle = bg
+    ctx.fillRect(0, 0, 256, 512)
+    ctx.fillStyle = fg
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = '900 54px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
+    const chars = [...big]
+    chars.forEach((ch, i) => ctx.fillText(ch, 128, 70 + i * 62))
+    ctx.font = '800 34px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
+    ctx.fillText(small, 128, 90 + chars.length * 62)
+    for (let i = 0; i < 30; i++) {
+      ctx.fillStyle = `rgba(255,255,255,${range(0.04, 0.14)})`
+      ctx.fillRect(range(0, 256), range(0, 512), range(20, 120), range(20, 160))
+    }
+    // Shredded lower edge.
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.beginPath()
+    ctx.moveTo(0, 512)
+    for (let x = 0; x <= 256; x += 16) ctx.lineTo(x, 512 - range(40, 220))
+    ctx.lineTo(256, 512)
+    ctx.closePath()
+    ctx.fill()
+  })
+}
+
+// Giant ad hung on a facade at (x, z), w × h metres, bottom edge at y, facing yaw.
+export function facadeAd(x, z, yaw, w, h, y) {
+  const m = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: adTexture(), transparent: true, alphaTest: 0.5, roughness: 0.8, side: THREE.DoubleSide }), { kind: 'paint', grime: 0.6, fade: 0.3 }))
+  const ad = mesh(new THREE.PlaneGeometry(w, h), m)
+  ad.position.set(x, y + h / 2, z)
+  ad.rotation.set(0, yaw, range(-0.02, 0.02))
+  ad.userData.dynamic = true
+  return ad
 }
 
 // ---------------------------------------------------------------- screens

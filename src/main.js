@@ -6,6 +6,7 @@ import { createComposer } from './post.js'
 import { windUniforms } from './wind.js'
 import { createAudio } from './audio.js'
 import { cutUniforms } from './cutaway.js'
+import { createMinimap } from './minimap.js'
 
 const renderer = new THREE.WebGLRenderer({ powerPreference: 'high-performance', antialias: false, stencil: false })
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
@@ -54,6 +55,9 @@ const robot = createRobot(...def.start, def.tour)
 scene.add(robot.object)
 
 const { composer, ao } = createComposer(renderer, scene, camera)
+
+// Scenes with a plan to show get a corner map; clicking it sends the robot there.
+const minimap = world.minimap ? createMinimap(world.minimap, (x, z) => robot.goTo(new THREE.Vector3(x, 0, z))) : null
 
 // Browsers only allow audio after a user gesture, so the soundscape starts on first input.
 const audio = createAudio()
@@ -127,5 +131,6 @@ renderer.setAnimationLoop(() => {
   sun.position.copy(focus).addScaledVector(look.sunDirection, 40)
   sun.target.position.copy(focus)
 
+  minimap?.update(robot.position, robot.heading, focus)
   composer.render(dt)
 })

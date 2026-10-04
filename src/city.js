@@ -11,7 +11,7 @@ import { createIvy } from './vegetation.js'
 // rows of windows behind iron grilles with air-conditioners hung under them, rooftop water
 // tanks and tin add-ons, and Ximending's forest of signboards jutting into the street.
 
-export const GROUND = 4.2
+export const GROUND_FLOOR = 4.2
 export const FLOOR = 3.2
 export const ARCADE = 3
 
@@ -288,28 +288,28 @@ const windowBays = (w) => Math.max(1, Math.floor(w / 2.3))
 // Ground floor: recessed shopfront with a shutter, the fascia sign, and the arcade columns
 // along the street edge (some snapped off in a ruin). Returns column x positions kept.
 function arcade(g, local, { w, d, clad, plain, ruined }) {
-  const shop = box(w, GROUND, d - ARCADE, plain)
-  shop.position.set(0, GROUND / 2, -ARCADE - (d - ARCADE) / 2)
+  const shop = box(w, GROUND_FLOOR, d - ARCADE, plain)
+  shop.position.set(0, GROUND_FLOOR / 2, -ARCADE - (d - ARCADE) / 2)
   g.add(shop)
   const cols = Math.max(2, Math.round(w / 4) + 1)
   const kept = []
   for (let i = 0; i < cols; i++) {
     const cx = -w / 2 + 0.3 + (i / (cols - 1)) * (w - 0.6)
-    const h = ruined && rand() < 0.4 ? range(0.8, GROUND * 0.7) : GROUND
+    const h = ruined && rand() < 0.4 ? range(0.8, GROUND_FLOOR * 0.7) : GROUND_FLOOR
     const col = box(0.6, h, 0.6, clad)
     col.position.set(cx, h / 2, -0.3)
     g.add(col)
     kept.push(cx)
   }
   const darkShop = cityMat('#141210', { kind: 'paint', grime: 0.2 })
-  const opening = box(w - 1.2, GROUND - 0.9, 0.05, darkShop)
-  opening.position.set(0, (GROUND - 0.9) / 2, -ARCADE + 0.03)
+  const opening = box(w - 1.2, GROUND_FLOOR - 0.9, 0.05, darkShop)
+  opening.position.set(0, (GROUND_FLOOR - 0.9) / 2, -ARCADE + 0.03)
   g.add(opening)
   // Shutters, some rolled part way up over the black interior.
-  const shutterH = (GROUND - 0.9) * pick([1, 1, 0.75, 0.45, 0.2])
-  local.push(['shutter', new THREE.Matrix4().compose(new THREE.Vector3(0, GROUND - 0.9 - shutterH / 2, -ARCADE + 0.08), new THREE.Quaternion(), new THREE.Vector3(w - 1.2, shutterH, 1)), pick(['#8f8a80', '#7d8288', '#a39d90', '#6e6a62'])])
+  const shutterH = (GROUND_FLOOR - 0.9) * pick([1, 1, 0.75, 0.45, 0.2])
+  local.push(['shutter', new THREE.Matrix4().compose(new THREE.Vector3(0, GROUND_FLOOR - 0.9 - shutterH / 2, -ARCADE + 0.08), new THREE.Quaternion(), new THREE.Vector3(w - 1.2, shutterH, 1)), pick(['#8f8a80', '#7d8288', '#a39d90', '#6e6a62'])])
   const fascia = new THREE.Mesh(new THREE.BoxGeometry(w - 0.4, 0.9, 0.12), [plain, plain, plain, plain, signMaterial(), plain])
-  fascia.position.set(0, GROUND - 0.55, 0.08)
+  fascia.position.set(0, GROUND_FLOOR - 0.55, 0.08)
   if (ruined && rand() < 0.5) {
     // Dropped at one end, hanging off its last bracket.
     fascia.position.y -= 0.6
@@ -323,19 +323,19 @@ function arcade(g, local, { w, d, clad, plain, ruined }) {
 function upperFloors(g, local, { w, d, floors, clad, plain, signs }) {
   const upper = floors * FLOOR
   const body = box(w, upper, d, clad)
-  body.position.set(0, GROUND + upper / 2, -d / 2)
+  body.position.set(0, GROUND_FLOOR + upper / 2, -d / 2)
   g.add(body)
   for (let f = 1; f < floors; f++) {
     const band = box(w + 0.04, 0.18, 0.06, plain)
-    band.position.set(0, GROUND + f * FLOOR, 0.02)
+    band.position.set(0, GROUND_FLOOR + f * FLOOR, 0.02)
     g.add(band)
   }
   const parapet = box(w, 0.9, 0.18, clad)
-  parapet.position.set(0, GROUND + upper + 0.45, -0.09)
+  parapet.position.set(0, GROUND_FLOOR + upper + 0.45, -0.09)
   g.add(parapet)
   const bays = windowBays(w)
   for (let f = 0; f < floors; f++) {
-    const y = GROUND + f * FLOOR + 1.65
+    const y = GROUND_FLOOR + f * FLOOR + 1.65
     for (let b = 0; b < bays; b++) {
       const wx = -w / 2 + (b + 0.5) * (w / bays)
       const ww = Math.min(1.8, (w / bays) * 0.7)
@@ -349,9 +349,9 @@ function upperFloors(g, local, { w, d, floors, clad, plain, signs }) {
   for (let i = 0; i < signs; i++) {
     const sx = (i % 2 ? 1 : -1) * (w / 2 - range(0.6, 1.2))
     const h = Math.min(upper - 0.6, range(3, 7))
-    bladeSign(g, sx, GROUND + range(0.2, 1), h, rand() < 0.15 ? range(-0.25, 0.25) : 0)
+    bladeSign(g, sx, GROUND_FLOOR + range(0.2, 1), h, rand() < 0.15 ? range(-0.25, 0.25) : 0)
   }
-  const roofY = GROUND + upper
+  const roofY = GROUND_FLOOR + upper
   const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.3, 14), cityMat(pick(['#9ea4a8', '#3f6fa0', '#c8c2b0']), { kind: pick(['metal', 'paint']) }))
   tank.position.set(range(-w / 2 + 1, w / 2 - 1), roofY + 1.3, -d * range(0.3, 0.7))
   g.add(tank)
@@ -380,11 +380,11 @@ function facadeHoles(w, floors, base) {
 function shell(g, local, { w, d, floors, clad }) {
   const h = floors * FLOOR + 0.9
   const front = new THREE.Mesh(jaggedWall(w, h, range(0.3, 0.7), facadeHoles(w, floors, 0)), clad)
-  front.position.y = GROUND
+  front.position.y = GROUND_FLOOR
   g.add(front)
   for (const side of [-1, 1]) {
     const wall = new THREE.Mesh(jaggedWall(d, h * range(0.6, 1), range(0.4, 0.9)), clad)
-    wall.position.set(side * (w / 2 - 0.15), GROUND, -d / 2)
+    wall.position.set(side * (w / 2 - 0.15), GROUND_FLOOR, -d / 2)
     wall.rotation.y = side * Math.PI / 2
     g.add(wall)
   }
@@ -395,7 +395,7 @@ function shell(g, local, { w, d, floors, clad }) {
     const slab = box(w - 0.5, 0.25, depth, slabMat)
     // Snapped at the back: the slab hinges down from the facade.
     slab.geometry.translate(0, 0, -depth / 2)
-    slab.position.set(0, GROUND + f * FLOOR, -0.3)
+    slab.position.set(0, GROUND_FLOOR + f * FLOOR, -0.3)
     slab.rotation.x = rand() < 0.5 ? range(0.15, 0.55) : 0
     g.add(slab)
   }
@@ -407,13 +407,13 @@ function shell(g, local, { w, d, floors, clad }) {
 function collapsed(g, local, { w, d, clad }) {
   const stubH = FLOOR * range(0.4, 1.3)
   const front = new THREE.Mesh(jaggedWall(w, stubH, range(0.2, 0.8), facadeHoles(w, 1, 0)), clad)
-  front.position.y = GROUND
+  front.position.y = GROUND_FLOOR
   g.add(front)
   const slabMat = cityMat(pick(CONCRETE))
   const slabs = Math.floor(range(2, 5))
   for (let i = 0; i < slabs; i++) {
     const slab = box(w * range(0.75, 1.02), 0.3, d * range(0.45, 0.85), slabMat)
-    slab.position.set(range(-0.6, 0.6), GROUND * 0.45 + i * range(0.6, 1.1), -d * range(0.45, 0.6))
+    slab.position.set(range(-0.6, 0.6), GROUND_FLOOR * 0.45 + i * range(0.6, 1.1), -d * range(0.45, 0.6))
     slab.rotation.set(range(-0.4, 0.35), range(-0.15, 0.15), range(-0.3, 0.3))
     g.add(slab)
   }
@@ -440,7 +440,7 @@ export function shophouse({ x, z, w, d, floors, rotY = 0, signs = 1, ruin = 'non
   else upperFloors(g, local, { w, d, floors, clad, plain, signs })
   // Creepers hanging down the face from the roof line.
   if (ruin !== 'collapsed' && rand() < 0.45) {
-    const top = GROUND + floors * FLOOR * (ruin === 'shell' ? 0.6 : 1)
+    const top = GROUND_FLOOR + floors * FLOOR * (ruin === 'shell' ? 0.6 : 1)
     const strands = []
     for (let i = 0; i < Math.round(w / 1.4); i++) {
       const vx = range(-w / 2 + 0.3, w / 2 - 0.3)
@@ -537,7 +537,7 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
   const clad = material ?? cityMat(pick(CLADDING))
   const plain = cityMat(pick(['#8e8a82', '#9a958b', '#7f7b74']))
   const { edges, cx, cz } = footprintEdges(pts)
-  const height = GROUND + floors * FLOOR
+  const height = GROUND_FLOOR + floors * FLOOR
   const shutterColor = pick(['#8f8a80', '#7d8288', '#a39d90', '#6e6a62'])
   const add = (kind, m, color) => local.push([kind, m, color])
 
@@ -558,8 +558,8 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
 
   if (ruin === 'none') {
     if (inset) {
-      g.add(extrudeFootprint(pts, height - GROUND, clad, GROUND))
-      g.add(extrudeFootprint(inset, GROUND, plain))
+      g.add(extrudeFootprint(pts, height - GROUND_FLOOR, clad, GROUND_FLOOR))
+      g.add(extrudeFootprint(inset, GROUND_FLOOR, plain))
     } else {
       g.add(extrudeFootprint(pts, height, clad))
     }
@@ -570,13 +570,13 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
       g.add(tank)
     }
   } else {
-    const top = ruin === 'shell' ? height : GROUND + FLOOR * range(0.4, 1.3)
+    const top = ruin === 'shell' ? height : GROUND_FLOOR + FLOOR * range(0.4, 1.3)
     for (const e of edges) {
       // Some walls have come down entirely.
       if (rand() < 0.25) continue
       const holes = []
       const bays = windowBays(e.len)
-      for (let f = 0; f < floors; f++) for (let b = 0; b < bays; b++) holes.push({ x: -e.len / 2 + (b + 0.5) * (e.len / bays), y: GROUND + f * FLOOR + 0.95, w: Math.min(1.8, (e.len / bays) * 0.7), h: 1.4 })
+      for (let f = 0; f < floors; f++) for (let b = 0; b < bays; b++) holes.push({ x: -e.len / 2 + (b + 0.5) * (e.len / bays), y: GROUND_FLOOR + f * FLOOR + 0.95, w: Math.min(1.8, (e.len / bays) * 0.7), h: 1.4 })
       const wall = new THREE.Mesh(jaggedWall(e.len + 0.3, top * range(0.35, 0.95), range(0.4, 0.95), e.len > 3 ? holes : []), clad)
       wall.position.set(e.mx, 0, e.mz)
       wall.rotation.y = e.yaw
@@ -614,7 +614,7 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
       const x = e.mx + e.dx * t - e.nx * 0.35
       const z = e.mz + e.dz * t - e.nz * 0.35
       // Whole under an intact block; in a ruin some snapped, under a collapse only stumps.
-      const h = ruin === 'none' ? GROUND : ruin === 'shell' ? (rand() < 0.65 ? GROUND : range(0.6, GROUND * 0.7)) : range(0.4, 1.6)
+      const h = ruin === 'none' ? GROUND_FLOOR : ruin === 'shell' ? (rand() < 0.65 ? GROUND_FLOOR : range(0.6, GROUND_FLOOR * 0.7)) : range(0.4, 1.6)
       const col = box(0.6, h, 0.6, clad)
       col.position.set(x, h / 2, z)
       col.rotation.y = e.yaw
@@ -628,7 +628,7 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
         if (rand() < 0.65) {
           const slab = box(len, 0.3, recess, cityMat(pick(CONCRETE)))
           const mid = t + len / 2
-          slab.position.set(e.mx + e.dx * mid - e.nx * recess / 2, GROUND + 0.15, e.mz + e.dz * mid - e.nz * recess / 2)
+          slab.position.set(e.mx + e.dx * mid - e.nx * recess / 2, GROUND_FLOOR + 0.15, e.mz + e.dz * mid - e.nz * recess / 2)
           slab.rotation.set(0, e.yaw, 0)
           if (rand() < 0.3) slab.rotateX(range(-0.25, 0.25))
           g.add(slab)
@@ -646,7 +646,7 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
       const bays = windowBays(e.len)
       const ww = Math.min(1.8, (e.len / bays) * 0.7)
       for (let f = 0; f < floors; f++) {
-        const y = GROUND + f * FLOOR + 1.65
+        const y = GROUND_FLOOR + f * FLOOR + 1.65
         for (let b = 0; b < bays; b++) {
           const t = -e.len / 2 + (b + 0.5) * (e.len / bays)
           const x = e.mx + e.dx * t + e.nx * 0.01
@@ -662,15 +662,15 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
     if (!street || e.len < 3) continue
     // Ground floor onto the street: a dark shopfront behind a part-rolled shutter.
     const sw = e.len - 1
-    const shopFront = box(sw, GROUND - 0.9, 0.05, cityMat('#141210', { kind: 'paint', grime: 0.2 }))
-    shopFront.position.set(e.mx + e.nx * (0.03 - back), (GROUND - 0.9) / 2, e.mz + e.nz * (0.03 - back))
+    const shopFront = box(sw, GROUND_FLOOR - 0.9, 0.05, cityMat('#141210', { kind: 'paint', grime: 0.2 }))
+    shopFront.position.set(e.mx + e.nx * (0.03 - back), (GROUND_FLOOR - 0.9) / 2, e.mz + e.nz * (0.03 - back))
     shopFront.rotation.y = e.yaw
     g.add(shopFront)
-    const shutterH = (GROUND - 0.9) * pick([1, 1, 0.75, 0.45, 0.2])
-    add('shutter', facing(e, e.mx + e.nx * (0.08 - back), GROUND - 0.9 - shutterH / 2, e.mz + e.nz * (0.08 - back)).scale(new THREE.Vector3(sw, shutterH, 1)), shutterColor)
+    const shutterH = (GROUND_FLOOR - 0.9) * pick([1, 1, 0.75, 0.45, 0.2])
+    add('shutter', facing(e, e.mx + e.nx * (0.08 - back), GROUND_FLOOR - 0.9 - shutterH / 2, e.mz + e.nz * (0.08 - back)).scale(new THREE.Vector3(sw, shutterH, 1)), shutterColor)
     if (ruin !== 'collapsed') {
       const fascia = new THREE.Mesh(new THREE.BoxGeometry(sw + 0.4, 0.9, 0.12), [plain, plain, plain, plain, signMaterial(), plain])
-      fascia.position.set(e.mx + e.nx * 0.08, GROUND - 0.55, e.mz + e.nz * 0.08)
+      fascia.position.set(e.mx + e.nx * 0.08, GROUND_FLOOR - 0.55, e.mz + e.nz * 0.08)
       fascia.rotation.y = e.yaw
       g.add(fascia)
     }
@@ -679,7 +679,7 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
       holder.position.set(e.mx, 0, e.mz)
       holder.rotation.y = e.yaw
       const count = e.len > 12 ? 2 : 1
-      for (let i = 0; i < count; i++) bladeSign(holder, (i % 2 ? 1 : -1) * (e.len / 2 - range(0.6, 1.4)), GROUND + range(0.2, 1), Math.min(floors * FLOOR - 0.6, range(3, 7)), rand() < 0.15 ? range(-0.25, 0.25) : 0)
+      for (let i = 0; i < count; i++) bladeSign(holder, (i % 2 ? 1 : -1) * (e.len / 2 - range(0.6, 1.4)), GROUND_FLOOR + range(0.2, 1), Math.min(floors * FLOOR - 0.6, range(3, 7)), rand() < 0.15 ? range(-0.25, 0.25) : 0)
       g.add(holder)
     }
   }
@@ -773,7 +773,7 @@ export function toppledTower({ x, z, rotY, w, d, floors }) {
   const debris = []
   const clad = cityMat(pick(CLADDING))
   const slabMat = cityMat(pick(CONCRETE))
-  const length = GROUND + floors * FLOOR
+  const length = GROUND_FLOOR + floors * FLOOR
   const pieces = [0.36, 0.3, 0.34]
   const bays = windowBays(w)
   let at = d * 0.5
@@ -786,8 +786,8 @@ export function toppledTower({ x, z, rotY, w, d, floors }) {
     seg.add(body)
     // Window grid on what used to be the street face, now facing up.
     const firstFloor = Math.ceil(floorAt / FLOOR)
-    for (let f = firstFloor; (f + 1) * FLOOR + GROUND < floorAt + len + FLOOR && f < floors; f++) {
-      const zz = GROUND + f * FLOOR + 1.65 - floorAt
+    for (let f = firstFloor; (f + 1) * FLOOR + GROUND_FLOOR < floorAt + len + FLOOR && f < floors; f++) {
+      const zz = GROUND_FLOOR + f * FLOOR + 1.65 - floorAt
       if (zz < 0.8 || zz > len - 0.8) continue
       for (let b = 0; b < bays; b++) {
         const wx = -w / 2 + (b + 0.5) * (w / bays)

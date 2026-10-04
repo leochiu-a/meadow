@@ -2,9 +2,9 @@ import * as THREE from 'three'
 import { setTerrain, noise, rand, range, pick, smoothstep } from './terrain.js'
 import { windUniforms } from './wind.js'
 import { createCityGround, GROUND, SIDEWALK, VEHICLE, MALL } from './city-ground.js'
-import { shophouse, mappedBuilding, toppledTower, flushCityParts, batchStatic } from './city.js'
+import { shophouse, mappedBuilding, toppledTower, flushCityParts, batchStatic, cityMat, GROUND_FLOOR, FLOOR } from './city.js'
 import { buildBlockers } from './collision.js'
-import { car, streetLamp, redHouseDressing, mrtExit, giantScreen } from './city-props.js'
+import { car, streetLamp, redHouseDressing, mrtExit, giantScreen, discLamp, mallPole, facadeAd, newWorldTower } from './city-props.js'
 import { createGrass, createFlowers, createReeds, createTree, createBush } from './vegetation.js'
 import { brickMaterial } from './bricks.js'
 import { withCutaway } from './cutaway.js'
@@ -229,7 +229,7 @@ function rainbowCrossing() {
   if (!way) return null
   const [ax, az] = way.pts[0]
   const [bx, bz] = way.pts[way.pts.length - 1]
-  return { x: (ax + bx) / 2, z: (az + bz) / 2, angle: Math.atan2(bz - az, bx - ax), length: Math.hypot(bx - ax, bz - az) + 1.5, width: 5 }
+  return { x: (ax + bx) / 2, z: (az + bz) / 2, angle: Math.atan2(bz - az, bx - ax), length: Math.hypot(bx - ax, bz - az) + 3, width: 7 }
 }
 
 // ---------------------------------------------------------------- build
@@ -253,6 +253,8 @@ function build(scene) {
   const fall = Math.atan2(towerFace[0] - towerBase[0], towerFace[1] - towerBase[1])
   const tower = toppledTower({ x: towerBase[0], z: towerBase[1], rotY: fall, w: 8, d: 9, floors: 8 })
   city.add(tower.group)
+  // What the minimap shows: every footprint and how ruined it is, the exits, the tower.
+  const plan = { footprints: [], exits: [], tower, rainbow }
   const tdx = Math.sin(fall)
   const tdz = Math.cos(fall)
   const towerLen = Math.hypot(tower.to[0] - tower.from[0], tower.to[1] - tower.from[1])
@@ -265,27 +267,64 @@ function build(scene) {
   for (const b of data.buildings) {
     if (underTower(b.pts) || isEntrance(b.pts)) continue
     const red = b.name?.includes('紅樓')
+    const newWorld = b.name === '新世界大樓'
     const floors = red ? 2 : Math.max(1, Math.min(14, b.levels ?? Math.floor(range(2, 7))))
+    // Around the Exit 6 square the blocks people know stand, weathered, under their ads.
+    const atSquare = Math.hypot(centroid(b.pts)[0] - exit6.x, centroid(b.pts)[1] - exit6.z) < 50
+    const ruin = red || newWorld ? 'none' : atSquare ? (rand() < 0.6 ? 'none' : 'shell') : RUINS(rand())
+    plan.footprints.push({ pts: b.pts, ruin: red || newWorld ? 'landmark' : ruin })
     city.add(
       mappedBuilding({
         pts: b.pts,
         floors,
-        ruin: red ? 'none' : RUINS(rand()),
+        ruin,
         streetSide,
         signs: !red && ['commercial', 'retail', 'yes', 'hotel'].includes(b.kind),
-        material: red ? withCutaway(brickMaterial('#9a4634')) : null,
+        material: red ? withCutaway(brickMaterial('#9a4634')) : newWorld ? cityMat('#e6e4dc', { grime: 1.1 }) : null,
         windows: !red,
       }),
     )
     if (red) city.add(redHouseDressing(b.pts))
+    if (newWorld) city.add(newWorldTower(b.pts, GROUND_FLOOR + floors * FLOOR, rainbow ? [rainbow.x, rainbow.z] : [exit6.x, exit6.z]))
+    if (atSquare && !newWorld && ruin === 'none') hangAds(city, b.pts, GROUND_FLOOR + floors * FLOOR, (x, z) => !taken.has(x, z))
     taken.polygon(b.pts)
   }
 
   // MRT Ximen exits where and how the map draws them.
   for (const e of data.entrances.filter((e) => e.name?.includes('捷運'))) {
-    const plan = exitPlan(e)
-    city.add(mrtExit(plan.x, plan.z, plan.yaw, { number: e.ref, length: plan.length, width: plan.width }))
-    for (const [ox, oz] of rectSamples(plan.x, plan.z, Math.cos(plan.yaw), -Math.sin(plan.yaw), plan.width + 3, plan.length + 6, 12)) taken.mark(ox, oz)
+    const exit = exitPlan(e)
+    plan.exits.push({ x: exit.x, z: exit.z, ref: e.ref })
+    city.add(mrtExit(exit.x, exit.z, exit.yaw, { number: e.ref, length: exit.length, width: exit.width }))
+    for (const [ox, oz] of rectSamples(exit.x, exit.z, Math.cos(exit.yaw), -Math.sin(exit.yaw), exit.width + 3, exit.length + 6, 12)) taken.mark(ox, oz)
+  }
+  // The Exit 6 square's disc lamps, a couple heaved over by roots.
+  for (const [ox, oz] of [[-12, 7], [-11, -7], [13, 7], [6, -10], [-4, 11]]) {
+    const x = exit6.x + ox
+    const z = exit6.z + oz
+    if (taken.has(x, z) || groundAt(x, z) === GROUND.road) continue
+    city.add(discLamp(x, z, rand() < 0.3 ? range(0.08, 0.2) : 0))
+    taken.mark(x, z)
+  }
+  // Hanzhong Street's yellow poles up the middle of the mall, some bent or down.
+  const hanzhong = roadsNamed('漢中街').find((r) => MALL.has(r.kind))
+  if (hanzhong) {
+    const pts = [...hanzhong.pts].reverse()
+    let carry = 6
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [ax, az] = pts[i]
+      const [bx, bz] = pts[i + 1]
+      const len = Math.hypot(bx - ax, bz - az)
+      const yaw = Math.atan2(-(bz - az), bx - ax) + Math.PI / 2
+      for (let t = carry; t < len; t += 14) {
+        const x = ax + ((bx - ax) * t) / len
+        const z = az + ((bz - az) * t) / len
+        if (!inView([x, z])) continue
+        const r = rand()
+        city.add(mallPole(x, z, yaw, { fallen: r < 0.15, bent: r > 0.75 ? range(0.15, 0.4) : 0 }))
+      }
+      carry = (carry - len) % 14
+      if (carry < 0) carry += 14
+    }
   }
   // Dead screens on trusses around the Exit 6 square, and one that came down.
   let screens = 0
@@ -314,6 +353,7 @@ function build(scene) {
       for (const [sx, sz] of rectSamples(cx, cz, dx, dz, w + 0.6, d + 0.6, 10)) taken.mark(sx, sz)
       const r = rand()
       const ruin = r < 0.35 ? 'collapsed' : r < 0.8 ? 'shell' : r < 0.88 ? 'lean' : 'none'
+      plan.footprints.push({ pts: [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => [cx + dx * a * (w / 2) - dz * b * (d / 2), cz + dz * a * (w / 2) + dx * b * (d / 2)]), ruin })
       city.add(shophouse({ x, z, w, d, floors: Math.floor(range(2, 7)), rotY: Math.atan2(fx, fz), signs: rand() < 0.6 ? 2 : 1, ruin }))
     },
   )
@@ -372,7 +412,39 @@ function build(scene) {
   scene.add(createReeds(reeds))
   scene.add(dust())
 
-  return { update() {}, cows: [], chickens: [] }
+  return { update() {}, cows: [], chickens: [], minimap: { bounds: data.bounds, draw: (ctx, px) => drawPlan(ctx, px, plan) } }
+}
+
+const centroid = (pts) => [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length]
+
+// Giant ads hung down every long face of a building that looks out on open ground (street,
+// mall or square, not the next building), side by side.
+function hangAds(city, pts, height, isOpen) {
+  const [cx, cz] = centroid(pts)
+  for (let i = 0; i < pts.length; i++) {
+    const [ax, az] = pts[i]
+    const [bx, bz] = pts[(i + 1) % pts.length]
+    const len = Math.hypot(bx - ax, bz - az)
+    if (len < 5) continue
+    let nx = (bz - az) / len
+    let nz = -(bx - ax) / len
+    const mx = (ax + bx) / 2
+    const mz = (az + bz) / 2
+    if (nx * (mx - cx) + nz * (mz - cz) < 0) {
+      nx = -nx
+      nz = -nz
+    }
+    if (!isOpen(mx + nx * 4, mz + nz * 4)) continue
+    const count = Math.max(1, Math.floor(len / 6))
+    const w = Math.min(6, (len / count) * 0.9)
+    const h = Math.min(height - GROUND_FLOOR - 1, w * 2)
+    if (h < 4) continue
+    for (let k = 0; k < count; k++) {
+      const t = (k + 0.5) / count
+      // Hung clear of the window cages, as the real ones are on frames.
+      city.add(facadeAd(ax + (bx - ax) * t + nx * 0.5, az + (bz - az) * t + nz * 0.5, Math.atan2(nx, nz), w, h, height - h - 0.6))
+    }
+  }
 }
 
 // An exit's canopy from the small building the map draws over it: centred on that footprint,
@@ -416,6 +488,103 @@ function exitPlan(e) {
 // Just outside the mouth of Exit 6, as if the robot had come up the stairs.
 const exit6 = exitPlan(data.entrances.find((e) => e.ref === '6'))
 const start = [exit6.x + Math.sin(exit6.yaw) * (exit6.length / 2 + 3), exit6.z + Math.cos(exit6.yaw) * (exit6.length / 2 + 3)]
+
+// The minimap: streets as they were (named ones labelled), footprints shaded by what is
+// left of them, the Red House, the toppled tower, the rainbow crossing and the MRT exits.
+const RUIN_STYLE = {
+  none: { fill: '#c9c1ae', stroke: '#8a8270' },
+  lean: { fill: '#b9b09c', stroke: '#8a8270' },
+  shell: { fill: 'rgba(150,142,124,0.35)', stroke: '#9a917d' },
+  collapsed: { fill: 'rgba(120,112,98,0.55)', stroke: null },
+  landmark: { fill: '#b8553f', stroke: '#7a2f22' },
+}
+
+function drawPlan(ctx, px, plan) {
+  const path = (pts, close) => {
+    ctx.beginPath()
+    pts.forEach(([x, z], i) => (i ? ctx.lineTo(...px(x, z)) : ctx.moveTo(...px(x, z))))
+    if (close) ctx.closePath()
+  }
+  const scale = px(1, 0)[0] - px(0, 0)[0]
+  ctx.lineCap = ctx.lineJoin = 'round'
+  // Streets: carriageways and malls drawn wide and pale on the meadow green.
+  for (const r of streets) {
+    path(r.pts)
+    ctx.strokeStyle = MALL.has(r.kind) ? 'rgba(214,206,186,0.55)' : 'rgba(196,190,176,0.7)'
+    ctx.lineWidth = Math.max(1.5, (r.width + (VEHICLE.has(r.kind) ? SIDEWALK * 2 : 0)) * scale)
+    ctx.stroke()
+  }
+  if (plan.rainbow) {
+    const { x, z, angle, length, width } = plan.rainbow
+    const colours = ['#d8463c', '#e8873a', '#e8c63e', '#4f9a4a', '#3c6fb4', '#7c4a9a']
+    colours.forEach((c, i) => {
+      const off = -width / 2 + (i + 0.5) * (width / 6)
+      const ox = -Math.sin(angle) * off
+      const oz = Math.cos(angle) * off
+      path([[x + ox - (Math.cos(angle) * length) / 2, z + oz - (Math.sin(angle) * length) / 2], [x + ox + (Math.cos(angle) * length) / 2, z + oz + (Math.sin(angle) * length) / 2]])
+      ctx.strokeStyle = c
+      ctx.lineWidth = Math.max(1, (width / 6) * scale)
+      ctx.stroke()
+    })
+  }
+  for (const { pts, ruin } of plan.footprints) {
+    const style = RUIN_STYLE[ruin]
+    path(pts, true)
+    ctx.fillStyle = style.fill
+    ctx.fill()
+    if (style.stroke) {
+      ctx.strokeStyle = style.stroke
+      ctx.lineWidth = 1
+      ctx.stroke()
+    }
+  }
+  const { from, to, halfWidth } = plan.tower
+  path([from, to])
+  ctx.strokeStyle = 'rgba(150,142,124,0.85)'
+  ctx.lineWidth = halfWidth * 2 * scale
+  ctx.lineCap = 'butt'
+  ctx.stroke()
+  // Street names along their longest segment.
+  ctx.font = '600 10px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const labelled = new Set()
+  for (const r of [...streets].sort((a, b) => b.width - a.width)) {
+    if (!r.name || labelled.has(r.name) || r.name.includes('巷')) continue
+    let best = null
+    for (let i = 0; i < r.pts.length - 1; i++) {
+      const [ax, az] = r.pts[i]
+      const [bx, bz] = r.pts[i + 1]
+      const len = Math.hypot(bx - ax, bz - az)
+      if (!best || len > best.len) best = { len, ax, az, bx, bz }
+    }
+    if (best.len < 25) continue
+    labelled.add(r.name)
+    const [mx, my] = px((best.ax + best.bx) / 2, (best.az + best.bz) / 2)
+    let a = Math.atan2(best.bz - best.az, best.bx - best.ax)
+    if (a > Math.PI / 2) a -= Math.PI
+    if (a < -Math.PI / 2) a += Math.PI
+    ctx.save()
+    ctx.translate(mx, my)
+    ctx.rotate(a)
+    ctx.lineWidth = 3
+    ctx.strokeStyle = 'rgba(40,52,28,0.85)'
+    ctx.strokeText(r.name, 0, 0)
+    ctx.fillStyle = '#f4f0e4'
+    ctx.fillText(r.name, 0, 0)
+    ctx.restore()
+  }
+  for (const e of plan.exits) {
+    const [ex, ey] = px(e.x, e.z)
+    ctx.fillStyle = '#1f6fb6'
+    ctx.beginPath()
+    ctx.arc(ex, ey, 7, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#ffffff'
+    ctx.font = '800 9px "Helvetica Neue", Arial, sans-serif'
+    ctx.fillText(e.ref, ex, ey + 0.5)
+  }
+}
 
 // Patrol: out of Exit 6, up the Hanzhong mall to Emei Street, west to Xining South Road,
 // back down to Chengdu Road past the Red House, and along Chengdu Road to the exit again.

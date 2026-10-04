@@ -19,6 +19,12 @@
         font: 14px system-ui, sans-serif; border: 0; border-radius: 22px; cursor: pointer;
         background: rgba(30, 40, 20, 0.45); color: #fff; backdrop-filter: blur(4px);
       }
+      #minimap {
+        position: fixed; left: 16px; top: 16px; border-radius: 10px; cursor: crosshair;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35); border: 2px solid rgba(255, 255, 255, 0.6);
+        transition: opacity 0.3s;
+      }
+      #minimap.hidden { opacity: 0; pointer-events: none; }
       #credit {
         position: fixed; right: 16px; top: 12px; font: 11px system-ui, sans-serif;
         color: rgba(255, 255, 255, 0.75); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
@@ -32,7 +38,7 @@
     </style>
   </head>
   <body>
-    <div id="hint">點一下開啟聲音・WASD / 方向鍵移動・點地面前往・閒置 4 秒自動巡遊</div>
+    <div id="hint">點一下開啟聲音・WASD / 方向鍵移動・點地面或地圖前往・M 開關地圖・閒置 4 秒自動巡遊</div>
     <div id="credit"></div>
     <button id="scene"></button>
     <button id="sound" aria-label="切換聲音">🔈</button>

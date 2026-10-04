@@ -6,7 +6,7 @@ import * as THREE from 'three'
 export const cutUniforms = {
   uCutA: { value: new THREE.Vector3() },
   uCutB: { value: new THREE.Vector3() },
-  uCutR: { value: 6 },
+  uCutR: { value: 3.5 },
 }
 
 // Wraps a material so it is cut away along the camera→robot line, keeping any existing patch.
