@@ -701,8 +701,7 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
 }
 
 /**
- * Footprint with chosen edges pulled inward by `depth` (the arcade recess). Returns null
- * when an inset corner would fly off (sharp or degenerate corners), so callers fall back.
+ * Footprint with chosen edges pulled inward by `depth` (the arcade recess).
  */
 function insetFootprint(pts, inset, depth) {
   const n = pts.length
@@ -735,7 +734,14 @@ function insetFootprint(pts, inset, depth) {
       x = a.px + a.dx * t
       z = a.pz + a.dz * t
     }
-    if (Math.hypot(x - pts[i][0], z - pts[i][1]) > depth * 2.5) return null
+    // At a sharp or reflex corner the offset lines meet far away; step the corner straight
+    // in along the two edges' inward normals instead.
+    if (Math.hypot(x - pts[i][0], z - pts[i][1]) > depth * 2.5) {
+      const na = { x: a.px - pts[(i - 1 + n) % n][0], z: a.pz - pts[(i - 1 + n) % n][1] }
+      const nb = { x: b.px - pts[i][0], z: b.pz - pts[i][1] }
+      x = pts[i][0] + (na.x + nb.x) / 2
+      z = pts[i][1] + (na.z + nb.z) / 2
+    }
     out.push([x, z])
   }
   return out

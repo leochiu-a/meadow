@@ -95,6 +95,9 @@ export function createRobot(x, z, tour) {
   let speed = 0
   let blink = 0
   let stuckTime = 0
+  let detour = 0
+  let detourSide = 1
+  let detourTries = 0
 
   addEventListener('keydown', (e) => keys.add(e.key.toLowerCase()))
   addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()))
@@ -150,12 +153,25 @@ export function createRobot(x, z, tour) {
           if (!wasTouring) tourIdx = nearestTourIdx()
           const [tx, tz] = tour[tourIdx]
           const to = new THREE.Vector2(tx - pos.x, tz - pos.z)
-          // Skip a waypoint if something keeps us from making progress toward it.
-          if (to.length() < 0.6 || stuckTime > 1.5) {
-            tourIdx = (tourIdx + 1) % tour.length
+          if (to.length() < 0.6) tourIdx = (tourIdx + 1) % tour.length
+          // Blocked: veer off to one side for a moment to get round it, alternating sides;
+          // only after several tries give up on the waypoint.
+          if (stuckTime > 0.8 && detour <= 0) {
+            detour = 1.1
+            detourSide = -detourSide
             stuckTime = 0
+            if (++detourTries > 4) {
+              tourIdx = (tourIdx + 1) % tour.length
+              detourTries = 0
+            }
           }
           dir = to.normalize()
+          if (detour > 0) {
+            detour -= dt
+            dir.rotateAround(new THREE.Vector2(), detourSide * 1.3)
+          } else if (stuckTime === 0 && speed > SPEED * 0.4) {
+            detourTries = 0
+          }
           pace = 0.55
         }
       }

@@ -4,7 +4,8 @@ import { windUniforms } from './wind.js'
 import { createCityGround, GROUND, SIDEWALK, VEHICLE, MALL } from './city-ground.js'
 import { shophouse, mappedBuilding, toppledTower, flushCityParts, batchStatic, cityMat, GROUND_FLOOR, FLOOR } from './city.js'
 import { buildBlockers } from './collision.js'
-import { car, streetLamp, redHouseDressing, mrtExit, giantScreen, discLamp, mallPole, facadeAd, newWorldTower } from './city-props.js'
+import { car, streetLamp, redHouseDressing, mrtExit, giantScreen, discLamp, mallPole, facadeAd, newWorldTower, cinemaFront, ringTotem, haloPole, rooftopBillboard, noodleStand } from './city-props.js'
+import { graffiti } from './graffiti.js'
 import { createGrass, createFlowers, createReeds, createTree, createBush } from './vegetation.js'
 import { brickMaterial } from './bricks.js'
 import { withCutaway } from './cutaway.js'
@@ -16,9 +17,9 @@ import osm from './data/ximending.json'
 
 const cityTerrain = { heightAt: () => 0 }
 
-// The scene covers the core from the Red House to Exit 6 and up to Emei Street: small enough
-// to carry meadow-thick grass. Map features outside it are dropped.
-const VIEW = { minX: -175, maxX: 45, minZ: -135, maxZ: 75 }
+// The scene covers the core from the Red House to Exit 6 and up to the Wuchang Street cinemas:
+// small enough to carry meadow-thick grass. Map features outside it are dropped.
+const VIEW = { minX: -175, maxX: 45, minZ: -268, maxZ: 75 }
 const inView = ([x, z]) => x > VIEW.minX && x < VIEW.maxX && z > VIEW.minZ && z < VIEW.maxZ
 const data = {
   ...osm,
@@ -246,11 +247,15 @@ function build(scene) {
   const city = new THREE.Group()
   const streetSide = (e) => groundAt(e.mx + e.nx * 2.5, e.mz + e.nz * 2.5) !== GROUND.lot
 
-  // The fallen tower: an eight-storey block on Emei Street that toppled south across it.
+  // The fallen tower: an eight-storey block on Emei Street that toppled over.
   const emei = crossing('漢中街', '峨眉街')
-  const towerBase = [emei[0] - 38, emei[1] - 14]
-  const towerFace = nearestStreet(...towerBase)
-  const fall = Math.atan2(towerFace[0] - towerBase[0], towerFace[1] - towerBase[1])
+  // Its stump stands well back from Emei Street so the debris heaped there leaves the
+  // street open.
+  const seedBase = [emei[0] - 38, emei[1] - 14]
+  const towerFace = nearestStreet(...seedBase)
+  const away = Math.hypot(seedBase[0] - towerFace[0], seedBase[1] - towerFace[1]) || 1
+  const towerBase = [towerFace[0] + ((seedBase[0] - towerFace[0]) / away) * 12, towerFace[1] + ((seedBase[1] - towerFace[1]) / away) * 12]
+  const fall = Math.atan2(towerBase[0] - towerFace[0], towerBase[1] - towerFace[1])
   const tower = toppledTower({ x: towerBase[0], z: towerBase[1], rotY: fall, w: 8, d: 9, floors: 8 })
   city.add(tower.group)
   // What the minimap shows: every footprint and how ruined it is, the exits, the tower.
@@ -263,6 +268,10 @@ function build(scene) {
 
   // Mapped buildings at their real size and height; the Red House keeps its brick.
   // The map draws station entrances as small buildings; the canopy stands there instead.
+  // Renamed cinemas for the Wuchang Street fronts, one per qualifying building.
+  const cinemaNames = ['國寶影城', '日昇戲院', '樂生影城', '豪景戲院']
+  let billboards = 3
+  let graffitiDone = false
   const isEntrance = (pts) => data.entrances.some((e) => pointInPolygon(e.x, e.z, pts) || pts.some(([x, z]) => Math.hypot(x - e.x, z - e.z) < 3))
   for (const b of data.buildings) {
     if (underTower(b.pts) || isEntrance(b.pts)) continue
@@ -271,7 +280,13 @@ function build(scene) {
     const floors = red ? 2 : Math.max(1, Math.min(14, b.levels ?? Math.floor(range(2, 7))))
     // Around the Exit 6 square the blocks people know stand, weathered, under their ads.
     const atSquare = Math.hypot(centroid(b.pts)[0] - exit6.x, centroid(b.pts)[1] - exit6.z) < 50
-    const ruin = red || newWorld ? 'none' : atSquare ? (rand() < 0.6 ? 'none' : 'shell') : RUINS(rand())
+    // Fronts people know (the cinemas, Emei Street) mostly stand too, weathered.
+    // Cinema fronts only on the north side, facing south toward the camera.
+    const wuchangFace = onCinemaStrip(b.pts) ? streetFace(b.pts, '武昌街二段') : null
+    const cinemaFace = wuchangFace && wuchangFace.nz > 0.3 ? wuchangFace : null
+    const emeiFace = streetFace(b.pts, '峨眉街')
+    const known = atSquare || wuchangFace || emeiFace
+    const ruin = red || newWorld || cinemaFace ? 'none' : known ? (rand() < 0.65 ? 'none' : 'shell') : RUINS(rand())
     plan.footprints.push({ pts: b.pts, ruin: red || newWorld ? 'landmark' : ruin })
     city.add(
       mappedBuilding({
@@ -287,6 +302,25 @@ function build(scene) {
     if (red) city.add(redHouseDressing(b.pts))
     if (newWorld) city.add(newWorldTower(b.pts, GROUND_FLOOR + floors * FLOOR, rainbow ? [rainbow.x, rainbow.z] : [exit6.x, exit6.z]))
     if (atSquare && !newWorld && ruin === 'none') hangAds(city, b.pts, GROUND_FLOOR + floors * FLOOR, (x, z) => !taken.has(x, z))
+    const height = GROUND_FLOOR + floors * FLOOR
+    if (cinemaFace && ruin === 'none' && cinemaNames.length && cinemaFace.len > 5) {
+      const f = cinemaFace
+      // Posters at eye level along the front, where the camera's steep angle can read them.
+      city.add(cinemaFront(f.mx, f.mz, f.yaw, f.len * 0.9, 0.8, cinemaNames.shift()))
+    }
+    if (emeiFace && ruin === 'none' && billboards > 0 && emeiFace.len > 6 && rand() < 0.6) {
+      const f = emeiFace
+      city.add(rooftopBillboard(f.mx - f.nx * 1.5, f.mz - f.nz * 1.5, f.yaw, Math.min(10, f.len * 0.9), Math.min(5, f.len * 0.45), height))
+      billboards--
+    }
+    if (wuchangFace && wuchangFace.nz > 0.3 && wuchangFace.len > 6 && !graffitiDone && centroid(b.pts)[0] < -80) {
+      const f = wuchangFace
+      const art = graffiti(Math.min(8, f.len * 0.8), 'piece')
+      art.position.set(f.mx + f.nx * 0.2, 2.6, f.mz + f.nz * 0.2)
+      art.rotation.y = f.yaw
+      city.add(art)
+      graffitiDone = true
+    }
     taken.polygon(b.pts)
   }
 
@@ -297,6 +331,30 @@ function build(scene) {
     city.add(mrtExit(exit.x, exit.z, exit.yaw, { number: e.ref, length: exit.length, width: exit.width }))
     for (const [ox, oz] of rectSamples(exit.x, exit.z, Math.cos(exit.yaw), -Math.sin(exit.yaw), exit.width + 3, exit.length + 6, 12)) taken.mark(ox, oz)
   }
+  // Wuchang Street's ringed light totems down the cinema strip, Emei Street's teal halo
+  // poles along both kerbs, and the noodle stand at the Emei Street corner.
+  alongNamed('武昌街二段', 13, (x, z, nx, nz, side) => {
+    if (!onCinemaStrip([[x, z]]) || side < 0) return
+    const tx = x + nx * 1.2
+    const tz = z + nz * 1.2
+    if (!taken.has(tx, tz)) city.add(ringTotem(tx, tz, { lean: rand() < 0.25 ? range(0.1, 0.3) : 0 }))
+  })
+  alongNamed('峨眉街', 15, (x, z, nx, nz) => {
+    const tx = x + nx * 0.8
+    const tz = z + nz * 0.8
+    if (!taken.has(tx, tz) && inView([tx, tz])) city.add(haloPole(tx, tz, { lean: rand() < 0.25 ? range(0.08, 0.25) : 0 }))
+  })
+  {
+    const [ex, ez] = crossing('漢中街', '峨眉街')
+    // On the north kerb, facing south, so its sign faces the camera.
+    const road = nearestOnRoad('峨眉街', ex - 14, ez)
+    const north = road.nz < 0 ? 1 : -1
+    const x = road.px + road.nx * north * 3.2
+    const z = road.pz + road.nz * north * 3.2
+    city.add(noodleStand(x, z, Math.atan2(-road.nx * north, -road.nz * north)))
+    for (const [ox, oz] of rectSamples(x, z, 1, 0, 6, 6)) taken.mark(ox, oz)
+  }
+
   // The Exit 6 square's disc lamps, a couple heaved over by roots.
   for (const [ox, oz] of [[-12, 7], [-11, -7], [13, 7], [6, -10], [-4, 11]]) {
     const x = exit6.x + ox
@@ -413,6 +471,91 @@ function build(scene) {
   scene.add(dust())
 
   return { update() {}, cows: [], chickens: [], minimap: { bounds: data.bounds, draw: (ctx, px) => drawPlan(ctx, px, plan) } }
+}
+
+// Nearest point on a named street's centreline, with the unit normal pointing from the
+// street toward (x, z) and the street's half-width.
+function nearestOnRoad(name, x, z) {
+  let best = null
+  for (const r of roadsNamed(name)) {
+    for (let i = 0; i < r.pts.length - 1; i++) {
+      const [ax, az] = r.pts[i]
+      const [bx, bz] = r.pts[i + 1]
+      const dx = bx - ax
+      const dz = bz - az
+      const len2 = dx * dx + dz * dz
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2))
+      const px = ax + dx * t
+      const pz = az + dz * t
+      const d = Math.hypot(x - px, z - pz)
+      if (!best || d < best.d) {
+        const len = Math.sqrt(len2)
+        let nx = -dz / len
+        let nz = dx / len
+        if (nx * (x - px) + nz * (z - pz) < 0) {
+          nx = -nx
+          nz = -nz
+        }
+        best = { d, px, pz, nx, nz, half: r.width / 2 + (VEHICLE.has(r.kind) ? SIDEWALK : 0) }
+      }
+    }
+  }
+  return best
+}
+
+// The longest wall of a footprint that fronts the named street (its outward normal facing
+// the street, its midpoint near the kerb), or null.
+function streetFace(pts, name) {
+  const [cx, cz] = centroid(pts)
+  let best = null
+  for (let i = 0; i < pts.length; i++) {
+    const [ax, az] = pts[i]
+    const [bx, bz] = pts[(i + 1) % pts.length]
+    const len = Math.hypot(bx - ax, bz - az)
+    if (len < 3) continue
+    let nx = (bz - az) / len
+    let nz = -(bx - ax) / len
+    const mx = (ax + bx) / 2
+    const mz = (az + bz) / 2
+    if (nx * (mx - cx) + nz * (mz - cz) < 0) {
+      nx = -nx
+      nz = -nz
+    }
+    const road = nearestOnRoad(name, mx, mz)
+    if (!road || road.d > road.half + 7 || nx * (road.px - mx) + nz * (road.pz - mz) < 0) continue
+    if (!best || len > best.len) best = { mx, mz, nx, nz, len, yaw: Math.atan2(nx, nz) }
+  }
+  return best
+}
+
+// The cinema strip: Wuchang Street from Hanzhong Street west to Xining South Road.
+function onCinemaStrip(pts) {
+  const [x, z] = centroid(pts)
+  const east = crossing('漢中街', '武昌街二段')
+  const west = crossing('武昌街二段', '西寧南路')
+  if (!east || !west || x > east[0] + 4 || x < west[0] - 4) return false
+  const road = nearestOnRoad('武昌街二段', x, z)
+  return road && road.d < road.half + 22
+}
+
+// Walk a named street every `step` metres, offering each kerb point (both sides) with the
+// outward normal from the centreline, and side = ±1.
+function alongNamed(name, step, fn) {
+  for (const r of roadsNamed(name)) {
+    const half = r.width / 2 + (VEHICLE.has(r.kind) ? SIDEWALK : 0)
+    for (let i = 0; i < r.pts.length - 1; i++) {
+      const [ax, az] = r.pts[i]
+      const [bx, bz] = r.pts[i + 1]
+      const len = Math.hypot(bx - ax, bz - az)
+      const nx = -(bz - az) / len
+      const nz = (bx - ax) / len
+      for (let t = step / 2; t < len; t += step) {
+        for (const side of [-1, 1]) {
+          fn(ax + ((bx - ax) * t) / len + nx * side * half, az + ((bz - az) * t) / len + nz * side * half, -nx * side, -nz * side, side)
+        }
+      }
+    }
+  }
 }
 
 const centroid = (pts) => [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length]
@@ -586,16 +729,81 @@ function drawPlan(ctx, px, plan) {
   }
 }
 
-// Patrol: out of Exit 6, up the Hanzhong mall to Emei Street, west to Xining South Road,
-// back down to Chengdu Road past the Red House, and along Chengdu Road to the exit again.
-const tour = [
-  start,
-  crossing('成都路', '漢中街'),
-  crossing('漢中街', '峨眉街'),
-  crossing('峨眉街', '西寧南路'),
-  crossing('成都路', '西寧南路'),
-  crossing('成都路', '漢中街'),
+// Patrol: out of Exit 6, up the Hanzhong mall, west along Emei Street past the noodle stand,
+// north on Xining South Road, east along the Wuchang Street cinemas, back down Hanzhong to
+// Chengdu Road, out to the Red House and back to the exit.
+// Each leg [street, from, to, north] follows the street's centreline between its crossings
+// with `from` and `to`, so the robot keeps to the street instead of cutting through ruins.
+// `north` shifts it that many metres toward the north kerb, past the shopfronts that face
+// the camera: the steep framing only shows a few metres beyond the robot.
+const LEGS = [
+  ['漢中街', '成都路', '峨眉街'],
+  ['峨眉街', '漢中街', '西寧南路', 2.6],
+  ['西寧南路', '峨眉街', '武昌街二段'],
+  ['武昌街二段', '西寧南路', '漢中街', 2.6],
+  ['漢中街', '武昌街二段', '成都路'],
+  ['成都路', '漢中街', '西寧南路'],
+  ['成都路', '西寧南路', '漢中街'],
 ]
+
+// Centreline points of `street` from crossing a to crossing b, a and b included.
+function streetLeg(street, a, b) {
+  let best = null
+  for (const r of roadsNamed(street)) {
+    if (r.kind === 'service') continue
+    const proj = (p) => {
+      let bestT = null
+      let acc = 0
+      for (let i = 0; i < r.pts.length - 1; i++) {
+        const [ax, az] = r.pts[i]
+        const [bx, bz] = r.pts[i + 1]
+        const dx = bx - ax
+        const dz = bz - az
+        const len = Math.hypot(dx, dz)
+        const t = Math.max(0, Math.min(1, ((p[0] - ax) * dx + (p[1] - az) * dz) / (len * len)))
+        const d = Math.hypot(p[0] - ax - dx * t, p[1] - az - dz * t)
+        if (!bestT || d < bestT.d) bestT = { d, s: acc + t * len }
+        acc += len
+      }
+      return bestT
+    }
+    const pa = proj(a)
+    const pb = proj(b)
+    const err = pa.d + pb.d
+    if (!best || err < best.err) best = { err, r, sa: pa.s, sb: pb.s }
+  }
+  const out = [a]
+  let acc = 0
+  const verts = best.r.pts.map((p, i) => {
+    if (i > 0) acc += Math.hypot(p[0] - best.r.pts[i - 1][0], p[1] - best.r.pts[i - 1][1])
+    return { p, s: acc }
+  })
+  const lo = Math.min(best.sa, best.sb)
+  const hi = Math.max(best.sa, best.sb)
+  const mid = verts.filter((v) => v.s > lo + 1 && v.s < hi - 1).map((v) => v.p)
+  out.push(...(best.sa < best.sb ? mid : mid.reverse()), b)
+  return out
+}
+
+const tour = [start]
+for (const [street, from, to, north = 0] of LEGS) {
+  const leg = streetLeg(street, crossing(street, from), crossing(street, to))
+  tour.push(
+    ...leg.map(([x, z], i) => {
+      if (!north) return [x, z]
+      const [ax, az] = leg[Math.max(0, i - 1)]
+      const [bx, bz] = leg[Math.min(leg.length - 1, i + 1)]
+      const len = Math.hypot(bx - ax, bz - az) || 1
+      let nx = -(bz - az) / len
+      let nz = (bx - ax) / len
+      if (nz > 0) {
+        nx = -nx
+        nz = -nz
+      }
+      return [x + nx * north, z + nz * north]
+    }),
+  )
+}
 
 // Dusty, hazy afternoon light over a dead city.
 export default {

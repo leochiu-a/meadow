@@ -420,10 +420,10 @@ export function newWorldTower(pts, height, toward) {
   const inX = cx - corner[0]
   const inZ = cz - corner[1]
   const inLen = Math.hypot(inX, inZ)
-  // Centred just outside the corner, so the drum stands proud of both facades.
+  // Centred just inside the corner, the drum bulging past both facades without blocking the mall.
   const r = 5
-  const ox = corner[0] - (inX / inLen) * 1
-  const oz = corner[1] - (inZ / inLen) * 1
+  const ox = corner[0] + (inX / inLen) * 2.5
+  const oz = corner[1] + (inZ / inLen) * 2.5
   const H = height + 2
   const white = cityMat('#e8e6de', { kind: 'paint', grime: 1.1 })
   const frame = cityMat('#c9ccc8', { kind: 'metal' })
@@ -498,6 +498,206 @@ export function newWorldTower(pts, height, toward) {
   return g
 }
 
+// ---------------------------------------------------------------- cinema street
+
+const FILMS = [
+  ['西門追風', '#d2452f', '#1a1c2a'],
+  ['霓虹迷途', '#5a2a8a', '#ffd84a'],
+  ['雨夜情歌', '#1f4f7a', '#f4e8d0'],
+  ['鐵甲少女', '#2a2a2e', '#e8483a'],
+  ['末班捷運', '#0f3a3a', '#7ae0c8'],
+  ['龍虎西門', '#7a1a14', '#f2c230'],
+]
+
+// Hand-painted cinema poster: a big title, a painted glow behind two silhouetted heads,
+// the paint cracked and bleached decades on.
+function filmTexture([title, bg, fg]) {
+  return canvasTexture(256, 384, (ctx) => {
+    const grad = ctx.createLinearGradient(0, 0, 0, 384)
+    grad.addColorStop(0, fg)
+    grad.addColorStop(0.35, bg)
+    grad.addColorStop(1, bg)
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, 256, 384)
+    const glow = ctx.createRadialGradient(128, 150, 10, 128, 150, 140)
+    glow.addColorStop(0, '#ffffffcc')
+    glow.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = glow
+    ctx.fillRect(0, 0, 256, 384)
+    ctx.fillStyle = 'rgba(10,10,14,0.85)'
+    for (const [hx, hy, r] of [[95, 170, 42], [165, 185, 36]]) {
+      ctx.beginPath()
+      ctx.arc(hx, hy, r, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.beginPath()
+      ctx.ellipse(hx, hy + r * 2.2, r * 1.5, r * 1.4, 0, Math.PI, 0)
+      ctx.fill()
+    }
+    ctx.fillStyle = '#ffffff'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = '900 54px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
+    ctx.fillText(title, 128, 320)
+    ctx.font = '600 16px "Helvetica Neue", Arial, sans-serif'
+    ctx.fillText('NOW SHOWING', 128, 360)
+    for (let i = 0; i < 40; i++) {
+      ctx.fillStyle = `rgba(255,250,235,${range(0.04, 0.16)})`
+      ctx.fillRect(range(0, 256), range(0, 384), range(10, 80), range(10, 60))
+    }
+  })
+}
+
+/**
+ * A cinema front on Wuchang Street: a row of hand-painted film posters across the facade
+ * above the entrance and the cinema's name down a tall vertical sign. Facade at (x, z)
+ * facing yaw, w wide, posters from y up; the name sign rises beside them.
+ */
+export function cinemaFront(x, z, yaw, w, y, name) {
+  const g = new THREE.Group()
+  const frame = cityMat('#2c2e32', { kind: 'metal' })
+  const count = Math.max(2, Math.min(6, Math.floor(w / 1.7)))
+  const pw = Math.min(1.5, (w / count) * 0.88)
+  const ph = pw * 1.5
+  for (let i = 0; i < count; i++) {
+    const m = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: filmTexture(pick(FILMS)), roughness: 0.8 }), { kind: 'paint', grime: 0.4, fade: 0.2 }))
+    const poster = mesh(new THREE.BoxGeometry(pw, ph, 0.12), [frame, frame, frame, frame, m, frame])
+    poster.position.set((i - (count - 1) / 2) * (w / count), y + ph / 2, 0.35)
+    // Now and then one has come loose and hangs off a corner.
+    if (rand() < 0.2) poster.rotation.z = range(-0.35, 0.35)
+    g.add(poster)
+  }
+  const nameTex = canvasTexture(128, 128 * [...name].length, (ctx) => {
+    ctx.fillStyle = '#b8241c'
+    ctx.fillRect(0, 0, 128, 128 * [...name].length)
+    ctx.fillStyle = '#f6e7c8'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = '900 96px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
+    ;[...name].forEach((ch, i) => ctx.fillText(ch, 64, 66 + i * 128))
+  })
+  const nameMat = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: nameTex, roughness: 0.7 }), { kind: 'paint', fade: 0.3 }))
+  const signH = [...name].length * 1.1
+  const sign = mesh(new THREE.BoxGeometry(0.3, signH, 1.1), [nameMat, nameMat, frame, frame, frame, frame])
+  sign.position.set(w / 2 - 0.6, Math.max(y + ph + 0.4, 2.5) + signH / 2, 0.9)
+  g.add(sign)
+  g.position.set(x, 0, z)
+  g.rotation.y = yaw
+  g.traverse((o) => (o.userData.dynamic = o.isMesh))
+  return g
+}
+
+// Wuchang Street's light totems: a white column crowned with stacked coloured rings.
+export function ringTotem(x, z, { lean = 0 } = {}) {
+  const g = new THREE.Group()
+  const white = cityMat('#e4e2dc', { kind: 'paint', grime: 1.2 })
+  g.add(mesh(new THREE.CylinderGeometry(0.42, 0.48, 4.6, 16).translate(0, 2.3, 0), white))
+  const colours = ['#e0483c', '#f2a83a', '#f2d84a', '#5ab04a', '#3a8ad0', '#9a5ac8']
+  for (let i = 0; i < 4; i++) {
+    const ring = mesh(new THREE.TorusGeometry(0.62 + i * 0.05, 0.07, 6, 24).rotateX(Math.PI / 2), cityMat(colours[(i * 2 + Math.floor(rand() * 2)) % 6], { kind: 'paint', fade: 0.4 }))
+    ring.position.y = 4.1 + i * 0.32
+    ring.rotation.x = rand() < 0.25 ? range(-0.4, 0.4) : 0
+    g.add(ring)
+  }
+  g.position.set(x, 0, z)
+  g.rotation.set(lean, rand() * 6, 0, 'YXZ')
+  addCircle(x, z, 0.5)
+  return g
+}
+
+// Emei Street's teal lamp posts: a tall post with a halo ring around a cylindrical lamp.
+export function haloPole(x, z, { lean = 0 } = {}) {
+  const g = new THREE.Group()
+  const teal = cityMat('#3f9a92', { kind: 'paint', grime: 1.2, fade: 0.3 })
+  g.add(mesh(new THREE.CylinderGeometry(0.12, 0.16, 6.4, 10).translate(0, 3.2, 0), teal))
+  const lamp = mesh(new THREE.CylinderGeometry(0.35, 0.35, 1.3, 14), cityMat('#2a2e32', { kind: 'metal' }))
+  lamp.position.y = 6.9
+  const halo = mesh(new THREE.TorusGeometry(0.9, 0.08, 6, 28).rotateX(Math.PI / 2), teal)
+  halo.position.y = 7.5
+  halo.rotation.z = rand() < 0.3 ? range(0.2, 0.5) : 0
+  g.add(lamp, halo)
+  g.position.set(x, 0, z)
+  g.rotation.set(lean, rand() * 6, 0, 'YXZ')
+  addCircle(x, z, 0.25)
+  return g
+}
+
+// Billboard on a steel frame standing on a roof edge at height y, facing yaw, w × h.
+export function rooftopBillboard(x, z, yaw, w, h, y) {
+  const g = new THREE.Group()
+  const steel = cityMat('#4a4d50', { kind: 'metal' })
+  const face = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: adTexture(true), roughness: 0.8 }), { kind: 'paint', grime: 0.7, fade: 0.35 }))
+  const board = mesh(new THREE.BoxGeometry(w, h, 0.2), [steel, steel, steel, steel, face, steel])
+  board.position.y = y + 1.2 + h / 2
+  board.rotation.x = rand() < 0.2 ? range(-0.25, -0.1) : 0
+  g.add(board)
+  for (const lx of [-w * 0.35, w * 0.35]) {
+    const leg = mesh(new THREE.BoxGeometry(0.16, 1.2 + h * 0.6, 0.16), steel)
+    leg.position.set(lx, y + (1.2 + h * 0.6) / 2, -0.6)
+    g.add(leg)
+    const brace = mesh(new THREE.BoxGeometry(0.1, 0.1, 1.6), steel)
+    brace.position.set(lx, y + 0.6, -0.3)
+    brace.rotation.x = 0.6
+    g.add(brace)
+  }
+  g.position.set(x, 0, z)
+  g.rotation.y = yaw
+  g.traverse((o) => (o.userData.dynamic = o.isMesh))
+  return g
+}
+
+/**
+ * The famous noodle stand at the Emei Street corner (renamed): a red signboard with big
+ * gold lettering over a stall counter, a tall vertical sign, and the standing counters
+ * where the queue ate. Facing yaw at (x, z).
+ */
+export function noodleStand(x, z, yaw) {
+  const g = new THREE.Group()
+  const red = cityMat('#b8241c', { kind: 'paint', fade: 0.3 })
+  const steel = cityMat('#8a8e90', { kind: 'metal' })
+  const signTex = canvasTexture(512, 160, (ctx) => {
+    ctx.fillStyle = '#b8241c'
+    ctx.fillRect(0, 0, 512, 160)
+    ctx.strokeStyle = '#f2c230'
+    ctx.lineWidth = 8
+    ctx.strokeRect(10, 10, 492, 140)
+    ctx.fillStyle = '#f6d24a'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = '900 104px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
+    ctx.fillText('阿忠麵線', 256, 84)
+  })
+  const signMat = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.7 }), { kind: 'paint', fade: 0.3 }))
+  const sign = mesh(new THREE.BoxGeometry(4.2, 1.3, 0.16), [red, red, red, red, signMat, red])
+  sign.position.set(0, 3.4, 0.2)
+  sign.rotation.z = 0.04
+  g.add(sign)
+  const counter = rbox(3.6, 1.0, 0.9, 0.05, steel)
+  counter.position.set(0, 0.5, 0.6)
+  g.add(counter)
+  // The same name on a banner along the counter front, low enough for the camera to read.
+  const banner = mesh(new THREE.PlaneGeometry(3.4, 0.85), signMat)
+  banner.position.set(0, 0.55, 1.06)
+  g.add(banner)
+  for (let i = 0; i < 2; i++) {
+    const pot = mesh(new THREE.CylinderGeometry(0.4, 0.36, 0.5, 16), cityMat('#5a5e60', { kind: 'metal' }))
+    pot.position.set(-0.8 + i * 1.4, 1.25, 0.6)
+    g.add(pot)
+  }
+  for (let i = 0; i < 3; i++) {
+    const table = rbox(1.2, 0.06, 0.5, 0.02, steel)
+    table.position.set(-1.5 + i * 1.5, 1.1, 2.6 + (i % 2) * 0.4)
+    table.rotation.y = range(-0.2, 0.2)
+    const leg = mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.1, 6), steel)
+    leg.position.set(table.position.x, 0.55, table.position.z)
+    g.add(table, leg)
+  }
+  g.position.set(x, 0, z)
+  g.rotation.y = yaw
+  g.traverse((o) => (o.userData.dynamic = o.isMesh))
+  addCircle(x + Math.sin(yaw) * 0.6, z + Math.cos(yaw) * 0.6, 1.8)
+  return g
+}
+
 // ---------------------------------------------------------------- billboards
 
 const AD_COPY = [
@@ -511,12 +711,30 @@ const AD_COPY = [
 ]
 
 // A giant facade ad, sun-bleached and torn: the bottom edge shredded away to show the wall.
-function adTexture() {
+// Landscape ones (for rooftop billboards) stay whole on their frames.
+function adTexture(landscape = false) {
   const [big, small, bg, fg] = pick(AD_COPY)
+  if (landscape) {
+    return canvasTexture(512, 256, (ctx) => {
+      ctx.fillStyle = bg
+      ctx.fillRect(0, 0, 512, 256)
+      ctx.fillStyle = fg
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.font = '900 84px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
+      ctx.fillText(big, 256, 100)
+      ctx.font = '800 44px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
+      ctx.fillText(small, 256, 190)
+      for (let i = 0; i < 30; i++) {
+        ctx.fillStyle = `rgba(255,255,255,${range(0.04, 0.14)})`
+        ctx.fillRect(range(0, 512), range(0, 256), range(20, 140), range(20, 100))
+      }
+    })
+  }
   return canvasTexture(256, 512, (ctx) => {
     ctx.fillStyle = bg
     ctx.fillRect(0, 0, 256, 512)
-    ctx.fillStyle = fg
+    ctx.fillStyle = '#ffffff'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.font = '900 54px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
