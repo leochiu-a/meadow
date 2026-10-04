@@ -7,6 +7,7 @@ import { windUniforms } from './wind.js'
 import { createAudio } from './audio.js'
 import { cutUniforms } from './cutaway.js'
 import { createMinimap } from './minimap.js'
+import { createOrbit } from './orbit.js'
 
 const renderer = new THREE.WebGLRenderer({ powerPreference: 'high-performance', antialias: false, stencil: false })
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
@@ -28,7 +29,6 @@ scene.fog = new THREE.Fog(...look.fog)
 
 // The far plane stops at the fog's end: nothing past it is visible anyway.
 const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 1, look.fog[2] + 5)
-const CAMERA_OFFSET = new THREE.Vector3(...look.camera.offset)
 // Keep a fixed horizontal field of view so portrait windows see as much scene as landscape ones.
 function fitCamera() {
   camera.aspect = innerWidth / innerHeight
@@ -85,10 +85,10 @@ soundButton.addEventListener('pointerdown', (e) => {
   soundButton.textContent = audio.toggle() ? '🔊' : '🔇'
 })
 
-// Click on the ground to send the robot there.
+// Drag to orbit the camera; a plain click on the ground sends the robot there.
 const raycaster = new THREE.Raycaster()
 const ground = scene.getObjectByName('ground')
-renderer.domElement.addEventListener('pointerdown', (e) => {
+const orbit = createOrbit(renderer.domElement, look.camera.offset, (e) => {
   const ndc = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1)
   raycaster.setFromCamera(ndc, camera)
   const hit = raycaster.intersectObject(ground)[0]
@@ -106,7 +106,8 @@ addEventListener('resize', () => {
 })
 
 const focus = robot.position.clone()
-camera.position.copy(focus).add(CAMERA_OFFSET)
+const offset = orbit.update(0, new THREE.Vector3())
+camera.position.copy(focus).add(offset)
 camera.lookAt(focus)
 
 // Power: at most 30 frames a second (a slow diorama loses little), and none at all while
@@ -133,14 +134,16 @@ run()
 
 function step(dt) {
   windUniforms.uTime.value = t
-  robot.update(t, dt)
+  robot.update(t, dt, orbit.yaw)
   world.update(t, dt)
   audio.update(dt, { listener: robot.position, robotSpeed: robot.speed, cows: world.cows, chickens: world.chickens })
 
   // Camera trails the robot with a gentle drift, like a handheld miniature shot.
   focus.lerp(robot.position, 1 - Math.exp(-dt * 2.2))
-  const drift = new THREE.Vector3(Math.sin(t * 0.13) * 0.6, Math.sin(t * 0.17) * 0.25, 0)
-  camera.position.copy(focus).add(CAMERA_OFFSET).add(drift)
+  orbit.update(dt, offset)
+  const sway = Math.sin(t * 0.13) * 0.6
+  const drift = new THREE.Vector3(Math.cos(orbit.yaw) * sway, Math.sin(t * 0.17) * 0.25, -Math.sin(orbit.yaw) * sway)
+  camera.position.copy(focus).add(offset).add(drift)
   camera.lookAt(focus.x, focus.y + 0.3, focus.z)
 
   // Dissolve whatever stands between the camera and the robot.

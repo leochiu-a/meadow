@@ -148,11 +148,13 @@ export function createRobot(x, z, tour, nav) {
     get touring() {
       return idle > IDLE_BEFORE_TOUR
     },
-    update(t, dt) {
-      const input = new THREE.Vector2(
-        (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0),
-        (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0),
-      )
+    // viewYaw: the camera's angle around the robot, so the keys steer relative to the screen.
+    update(t, dt, viewYaw = 0) {
+      const right = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0)
+      const back = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0)
+      const c = Math.cos(viewYaw)
+      const s = Math.sin(viewYaw)
+      const input = new THREE.Vector2(right * c + back * s, back * c - right * s)
       let dir = null
       let pace = 1
       if (input.lengthSq() > 0) {

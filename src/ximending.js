@@ -343,13 +343,14 @@ function build(scene) {
   })
   {
     const [ex, ez] = crossing('漢中街', '峨眉街')
-    // On the north kerb, facing south, so its sign faces the camera.
+    // Backed against the north storefronts, facing south, so its sign faces the camera.
     const road = nearestOnRoad('峨眉街', ex - 14, ez)
     const north = road.nz < 0 ? 1 : -1
-    const x = road.px + road.nx * north * 3.2
-    const z = road.pz + road.nz * north * 3.2
+    const back = road.half - 0.3
+    const x = road.px + road.nx * north * back
+    const z = road.pz + road.nz * north * back
     city.add(noodleStand(x, z, Math.atan2(-road.nx * north, -road.nz * north)))
-    for (const [ox, oz] of rectSamples(x, z, 1, 0, 6, 6)) taken.mark(ox, oz)
+    for (const [ox, oz] of rectSamples(x, z, 1, 0, 8, 4)) taken.mark(ox, oz)
   }
 
   // The Exit 6 square's disc lamps, a couple heaved over by roots.

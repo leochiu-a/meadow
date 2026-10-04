@@ -683,10 +683,11 @@ export function noodleStand(x, z, yaw) {
     pot.position.set(-0.8 + i * 1.4, 1.25, 0.6)
     g.add(pot)
   }
-  for (let i = 0; i < 3; i++) {
+  // Standing counters against the wall either side of the stall, where the queue ate.
+  for (const side of [-1, 1]) {
     const table = rbox(1.2, 0.06, 0.5, 0.02, steel)
-    table.position.set(-1.5 + i * 1.5, 1.1, 2.6 + (i % 2) * 0.4)
-    table.rotation.y = range(-0.2, 0.2)
+    table.position.set(side * 2.7, 1.1, 0.4)
+    table.rotation.y = range(-0.1, 0.1)
     const leg = mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.1, 6), steel)
     leg.position.set(table.position.x, 0.55, table.position.z)
     g.add(table, leg)
@@ -694,7 +695,11 @@ export function noodleStand(x, z, yaw) {
   g.position.set(x, 0, z)
   g.rotation.y = yaw
   g.traverse((o) => (o.userData.dynamic = o.isMesh))
-  addCircle(x + Math.sin(yaw) * 0.6, z + Math.cos(yaw) * 0.6, 1.8)
+  const ax = Math.cos(yaw) * 3
+  const az = -Math.sin(yaw) * 3
+  const cx = x + Math.sin(yaw) * 0.5
+  const cz = z + Math.cos(yaw) * 0.5
+  addSegment(cx - ax, cz - az, cx + ax, cz + az, 0.6)
   return g
 }
 
