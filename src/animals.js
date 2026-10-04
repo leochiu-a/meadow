@@ -4,8 +4,8 @@ import { addCircle, resolve } from './collision.js'
 
 export const turnToward = (from, to, k) => from + Math.atan2(Math.sin(to - from), Math.cos(to - from)) * k
 
-const mat = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9 })
-const shadow = (o) => {
+export const mat = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9 })
+export const shadow = (o) => {
   o.traverse((m) => {
     if (m.isMesh) {
       m.castShadow = true
@@ -16,7 +16,7 @@ const shadow = (o) => {
 }
 
 // Coat material: fine world-space mottling so hide reads as fur rather than plastic.
-function furMaterial(color, vertexColors = false) {
+export function furMaterial(color, vertexColors = false) {
   const m = new THREE.MeshStandardMaterial({ color, roughness: 1, vertexColors })
   m.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
@@ -50,7 +50,7 @@ function furMaterial(color, vertexColors = false) {
  * and whose colour follows `colors`, both sampled along the spine, closed at each end.
  * spine: [[x, y], ...] in the XY plane; squash scales the Z (width) of the cross-section.
  */
-function loft(spine, radii, { squash = 0.85, colors = null, segs = 40, ring = 14 } = {}) {
+export function loft(spine, radii, { squash = 0.85, colors = null, segs = 40, ring = 14 } = {}) {
   const curve = new THREE.CatmullRomCurve3(spine.map(([x, y]) => new THREE.Vector3(x, y, 0)))
   const sample = (arr, t) => {
     const f = t * (arr.length - 1)
@@ -100,7 +100,7 @@ function loft(spine, radii, { squash = 0.85, colors = null, segs = 40, ring = 14
   return g
 }
 
-function leg(len, r, material, hoof) {
+export function leg(len, r, material, hoof) {
   const g = new THREE.Group()
   const upper = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.75, len, 7).translate(0, -len / 2, 0), material)
   g.add(upper)

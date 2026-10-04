@@ -89,16 +89,28 @@ export function createNavGrid({ minX, maxX, minZ, maxZ }, { cell = 0.5, radius =
     return -1
   }
 
-  // The straight line between two cell centres stays on reachable ground.
-  function clear(a, b) {
-    const [ax, az] = centre(a)
-    const [bx, bz] = centre(b)
+  const walkable = (x, z) => open(...cellOf(x, z))
+
+  // The straight line from (ax, az) to (bx, bz) stays on reachable ground.
+  function sightline(ax, az, bx, bz) {
     const steps = Math.ceil(Math.hypot(bx - ax, bz - az) / (cell * 0.25))
     for (let s = 1; s < steps; s++) {
-      const [i, j] = cellOf(ax + ((bx - ax) * s) / steps, az + ((bz - az) * s) / steps)
-      if (!open(i, j)) return false
+      if (!walkable(ax + ((bx - ax) * s) / steps, az + ((bz - az) * s) / steps)) return false
     }
     return true
+  }
+  const clear = (a, b) => sightline(...centre(a), ...centre(b))
+
+  // A random reachable spot between rMin and rMax from (x, z) in plain sight of it, or null.
+  function spotNear(x, z, rMin, rMax, tries = 12) {
+    for (let n = 0; n < tries; n++) {
+      const a = Math.random() * Math.PI * 2
+      const r = rMin + Math.random() * (rMax - rMin)
+      const sx = x + Math.cos(a) * r
+      const sz = z + Math.sin(a) * r
+      if (walkable(sx, sz) && sightline(x, z, sx, sz)) return [sx, sz]
+    }
+    return null
   }
 
   // Scratch arrays for A*, reused across searches; `run` tags which entries are current.
@@ -177,7 +189,7 @@ export function createNavGrid({ minX, maxX, minZ, maxZ }, { cell = 0.5, radius =
     return path
   }
 
-  return { cols, rows, cell, reach, findPath }
+  return { cols, rows, cell, reach, findPath, walkable, sightline, spotNear }
 }
 
 // Binary min-heap of (priority, value) pairs.

@@ -5,6 +5,7 @@ import { createCityGround, GROUND, SIDEWALK, VEHICLE, MALL } from './city-ground
 import { shophouse, mappedBuilding, toppledTower, flushCityParts, batchStatic, cityMat, GROUND_FLOOR, FLOOR } from './city.js'
 import { buildBlockers } from './collision.js'
 import { createNavGrid } from './walkmap.js'
+import { createCat, createDog, createPigeonFlock } from './strays.js'
 import { car, streetLamp, redHouseDressing, mrtExit, giantScreen, discLamp, mallPole, facadeAd, newWorldTower, cinemaFront, ringTotem, haloPole, rooftopBillboard, noodleStand } from './city-props.js'
 import { graffiti } from './graffiti.js'
 import { createGrass, createFlowers, createReeds, createTree, createBush } from './vegetation.js'
@@ -469,7 +470,19 @@ function build(scene) {
 
   // Every collider is in place now: plan routes on them, and draw the minimap from them.
   const nav = createNavGrid(data.bounds)
-  return { update() {}, cows: [], chickens: [], nav, minimap: { bounds: data.bounds, title: '西門町', draw: (ctx, px) => drawPlan(ctx, px, nav) } }
+  const { animals, events } = strays(scene, nav, (x, z) => overgrownAt(x, z) < 0.45)
+  return {
+    update(t, dt, robot) {
+      for (const a of animals) a.update(t, dt, robot)
+    },
+    events,
+    voices: {
+      cat: animals.filter((a) => a.kind === 'cat').map((a) => a.position),
+      dog: animals.filter((a) => a.kind === 'dog').map((a) => a.position),
+      pigeon: animals.filter((a) => a.kind === 'pigeon').map((a) => a.positions[0]),
+    },
+    nav,
+    minimap: { bounds: data.bounds, title: '西門町', draw: (ctx, px) => drawPlan(ctx, px, nav) } }
 }
 
 // Nearest point on a named street's centreline, with the unit normal pointing from the
@@ -699,6 +712,68 @@ function drawPlan(ctx, px, nav) {
   ctx.drawImage(tint(MAP.block), ox, oy, ex - ox, ey - oy)
 }
 
+// The city's new residents: cats about the noodle stand and the cinemas, street dogs on
+// their corners, pigeons on the open squares. Sounds they make go into `events`.
+// They keep to bare ground (`bare`), where the grass would not hide them.
+function strays(scene, nav, bare) {
+  const events = []
+  const emit = (kind, x, z) => events.push({ kind, x, z })
+  const ground = {
+    ...nav,
+    walkable: (x, z) => nav.walkable(x, z) && bare(x, z),
+    spotNear(x, z, rMin, rMax) {
+      for (let i = 0; i < 8; i++) {
+        const s = nav.spotNear(x, z, rMin, rMax, 3)
+        if (s && bare(...s)) return s
+      }
+      return null
+    },
+  }
+  // The nearest bare walkable spot to (x, z), searching outward.
+  const onNav = ([x, z]) => {
+    for (let r = 0; r < 16; r += 0.5) {
+      for (let a = 0; a < 12; a++) {
+        const sx = x + Math.cos((a / 12) * Math.PI * 2) * r
+        const sz = z + Math.sin((a / 12) * Math.PI * 2) * r
+        if (ground.walkable(sx, sz)) return [sx, sz]
+      }
+    }
+    return null
+  }
+  const emei = crossing('漢中街', '峨眉街')
+  const wuchang = crossing('漢中街', '武昌街二段')
+  const cinemas = crossing('西寧南路', '武昌街二段')
+  const chengdu = crossing('漢中街', '成都路')
+  const redHouse = centroid(data.buildings.find((b) => b.name?.includes('紅樓')).pts)
+  const square = [exit6.x, exit6.z]
+  const plan = [
+    ['cat', [emei[0] - 12, emei[1] - 2]],
+    ['cat', [emei[0] - 16, emei[1] - 3]],
+    ['cat', [(wuchang[0] + cinemas[0]) / 2, (wuchang[1] + cinemas[1]) / 2 - 2]],
+    ['cat', [redHouse[0] + 6, redHouse[1] + 8]],
+    ['cat', [square[0] - 8, square[1] + 6]],
+    ['cat', [chengdu[0] - 20, chengdu[1]]],
+    ['dog', [chengdu[0] + 4, chengdu[1] - 3]],
+    ['dog', [redHouse[0] - 4, redHouse[1] + 10]],
+    ['dog', [cinemas[0] + 6, cinemas[1]]],
+    ['pigeon', [square[0] + 2, square[1] - 6]],
+    ['pigeon', [redHouse[0], redHouse[1] + 12]],
+    ['pigeon', [wuchang[0] - 8, wuchang[1]]],
+    ['pigeon', [emei[0], emei[1] - 18]],
+  ]
+  const make = { cat: createCat, dog: createDog, pigeon: createPigeonFlock }
+  const animals = []
+  for (const [kind, at] of plan) {
+    const spot = onNav(at)
+    if (!spot) continue
+    const a = make[kind](...spot, ground, emit)
+    a.kind = kind
+    scene.add(a.object)
+    animals.push(a)
+  }
+  return { animals, events }
+}
+
 // Patrol: out of Exit 6, up the Hanzhong mall, west along Emei Street past the noodle stand,
 // north on Xining South Road, east along the Wuchang Street cinemas, back down Hanzhong to
 // Chengdu Road, out to the Red House and back to the exit.
@@ -787,6 +862,7 @@ export default {
     // The meadow's framing, so the turf reads at the same scale.
     camera: { offset: [0, 11, 12.5], hfov: 33 },
   },
+  ambience: 'city',
   start,
   tour,
   attribution: data.attribution,

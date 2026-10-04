@@ -205,8 +205,10 @@ function build(scene) {
     update(t, dt) {
       for (const u of updaters) u(t, dt)
     },
-    cows: cows.map((c) => c.object.position),
-    chickens: chickens.map((c) => c.object.position),
+    voices: {
+      cow: cows.map((c) => c.object.position),
+      chicken: chickens.map((c) => c.object.position),
+    },
   }
 }
 

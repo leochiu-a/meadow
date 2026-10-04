@@ -60,7 +60,7 @@ const { composer, ao } = createComposer(renderer, scene, camera)
 const minimap = world.minimap ? createMinimap(world.minimap, (x, z) => robot.goTo(new THREE.Vector3(x, 0, z))) : null
 
 // Browsers only allow audio after a user gesture, so the soundscape starts on first input.
-const audio = createAudio()
+const audio = createAudio(def.ambience)
 const soundButton = document.getElementById('sound')
 const startAudio = () => {
   audio.start()
@@ -135,8 +135,9 @@ run()
 function step(dt) {
   windUniforms.uTime.value = t
   robot.update(t, dt, orbit.yaw)
-  world.update(t, dt)
-  audio.update(dt, { listener: robot.position, robotSpeed: robot.speed, cows: world.cows, chickens: world.chickens })
+  world.update(t, dt, robot.position)
+  if (world.events) for (const e of world.events.splice(0)) audio.cue(e, robot.position)
+  audio.update(dt, { listener: robot.position, robotSpeed: robot.speed, voices: world.voices })
 
   // Camera trails the robot with a gentle drift, like a handheld miniature shot.
   focus.lerp(robot.position, 1 - Math.exp(-dt * 2.2))
