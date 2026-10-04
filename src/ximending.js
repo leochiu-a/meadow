@@ -471,6 +471,7 @@ function build(scene) {
   // Every collider is in place now: plan routes on them, and draw the minimap from them.
   const nav = createNavGrid(data.bounds)
   const { animals, events } = strays(scene, nav, (x, z) => overgrownAt(x, z) < 0.45)
+  const relics = relicSpots(nav)
   return {
     update(t, dt, robot) {
       for (const a of animals) a.update(t, dt, robot)
@@ -481,6 +482,7 @@ function build(scene) {
       dog: animals.filter((a) => a.kind === 'dog').map((a) => a.position),
       pigeon: animals.filter((a) => a.kind === 'pigeon').map((a) => a.positions[0]),
     },
+    relics,
     nav,
     minimap: { bounds: data.bounds, title: '西門町', draw: (ctx, px) => drawPlan(ctx, px, nav) } }
 }
@@ -710,6 +712,35 @@ function drawPlan(ctx, px, nav) {
   ctx.imageSmoothingEnabled = true
   ctx.drawImage(tint(MAP.blockShade), ox, oy + 1.5, ex - ox, ey - oy)
   ctx.drawImage(tint(MAP.block), ox, oy, ex - ox, ey - oy)
+}
+
+// Where each relic lies (see relics.js): by the landmark its memory belongs to.
+function relicSpots(nav) {
+  const at = (a, b, k = 0.5) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]
+  const emei = crossing('漢中街', '峨眉街')
+  const wuchang = crossing('漢中街', '武昌街二段')
+  const cinemas = crossing('西寧南路', '武昌街二段')
+  const xiningEmei = crossing('西寧南路', '峨眉街')
+  const chengdu = crossing('漢中街', '成都路')
+  const chengduXining = crossing('西寧南路', '成都路')
+  const redHouse = centroid(data.buildings.find((b) => b.name?.includes('紅樓')).pts)
+  const newWorld = centroid(data.buildings.find((b) => b.name === '新世界大樓').pts)
+  const spots = {
+    ticket: at(wuchang, cinemas, 0.6),
+    noodleBowl: [emei[0] - 11, emei[1] - 2.5],
+    card: [exit6.x + 3, exit6.z - 5],
+    neon: at(emei, xiningEmei, 0.7),
+    cassette: [redHouse[0] + 8, redHouse[1] + 6],
+    bubbleTea: at(chengdu, emei, 0.45),
+    sneaker: nearestStreet(...newWorld),
+    vinyl: at(wuchang, cinemas, 0.15),
+    flipPhone: at(xiningEmei, cinemas, 0.5),
+    skateboard: at(chengdu, chengduXining, 0.5),
+  }
+  return Object.entries(spots).map(([id, [x, z]]) => {
+    const [sx, sz] = nav.snap(x, z)
+    return { id, x: sx, z: sz }
+  })
 }
 
 // The city's new residents: cats about the noodle stand and the cinemas, street dogs on

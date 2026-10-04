@@ -189,7 +189,13 @@ export function createNavGrid({ minX, maxX, minZ, maxZ }, { cell = 0.5, radius =
     return path
   }
 
-  return { cols, rows, cell, reach, findPath, walkable, sightline, spotNear }
+  // The reachable spot nearest (x, z), or null when there is none nearby.
+  const snap = (x, z) => {
+    const k = nearestOpen(x, z)
+    return k < 0 ? null : walkable(x, z) ? [x, z] : centre(k)
+  }
+
+  return { cols, rows, cell, reach, findPath, walkable, sightline, spotNear, snap }
 }
 
 // Binary min-heap of (priority, value) pairs.

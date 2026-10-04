@@ -9,6 +9,8 @@ import { cutUniforms } from './cutaway.js'
 import { createMinimap } from './minimap.js'
 import { createOrbit } from './orbit.js'
 import { createWeather, createRain, applyWet, overcastEnvironment } from './weather.js'
+import { createScavenge } from './scavenge.js'
+import { createCollectionUI } from './collection.js'
 
 const renderer = new THREE.WebGLRenderer({ powerPreference: 'high-performance', antialias: false, stencil: false })
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
@@ -56,6 +58,17 @@ const world = def.build(scene)
 const robot = createRobot(...def.start, def.tour, world.nav)
 scene.add(robot.object)
 
+// Scavenging: relics to find, a radar to find them with, and a book to keep them in.
+let audio = null
+const scavenge = createScavenge(scene, sceneName, world.relics, {
+  onCollect: (def) => {
+    collection.collected(def)
+    audio.chime()
+  },
+  onPing: (signal) => audio.ping(signal),
+})
+const collection = createCollectionUI(scavenge.defs, scavenge.found)
+
 const { composer, ao, setRain } = createComposer(renderer, scene, camera)
 
 // Weather: wet surfaces reflect an overcast sky, as strongly as they are wet.
@@ -72,7 +85,7 @@ const STORM_GREY = new THREE.Color('#8b9296')
 const minimap = world.minimap ? createMinimap(world.minimap, (x, z) => robot.goTo(new THREE.Vector3(x, 0, z))) : null
 
 // Browsers only allow audio after a user gesture, so the soundscape starts on first input.
-const audio = createAudio(def.ambience)
+audio = createAudio(def.ambience)
 const weather = createWeather((delay) => audio.thunder(delay))
 const soundButton = document.getElementById('sound')
 const startAudio = () => {
@@ -149,6 +162,8 @@ function step(dt) {
   windUniforms.uTime.value = t
   weather.update(dt)
   robot.update(t, dt, orbit.yaw)
+  scavenge.update(t, dt, robot.position, !robot.touring)
+  collection.setSignal(scavenge.signal)
   world.update(t, dt, robot.position)
   if (world.events) for (const e of world.events.splice(0)) audio.cue(e, robot.position)
   audio.update(dt, { listener: robot.position, robotSpeed: robot.speed, voices: world.voices, rain: weather.rain })

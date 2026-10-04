@@ -42,6 +42,73 @@
         color: rgba(255, 255, 255, 0.75); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
       }
       #credit a { color: inherit; }
+      /* Scavenging: radar pill, find card and collection book, in the minimap's style. */
+      #radar {
+        position: fixed; left: 50%; top: 14px; transform: translateX(-50%);
+        display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 14px 0 10px;
+        border: 0; border-radius: 17px; cursor: pointer; background: #fff6e2;
+        box-shadow: 0 0 0 3px #8a6a3e, 0 4px 12px rgba(40, 28, 10, 0.3);
+        font: 800 13px "PingFang TC", "Heiti TC", system-ui, sans-serif; color: #6a4a26;
+      }
+      #radar .dish { font-size: 16px; }
+      #radar .bars { display: flex; align-items: flex-end; gap: 3px; height: 16px; }
+      #radar .bars i { width: 5px; border-radius: 2px; background: #e2d4b4; transition: background 0.2s; }
+      #radar .bars i:nth-child(1) { height: 5px; } #radar .bars i:nth-child(2) { height: 8px; }
+      #radar .bars i:nth-child(3) { height: 11px; } #radar .bars i:nth-child(4) { height: 14px; }
+      #radar .bars i:nth-child(5) { height: 16px; }
+      #radar .bars i.on { background: #6fae3e; }
+      #radar.hot .bars i.on { background: #e0702e; }
+      #toast {
+        position: fixed; left: 50%; top: 64px; transform: translate(-50%, -12px); opacity: 0;
+        display: flex; gap: 12px; align-items: center; width: min(420px, calc(100vw - 32px)); box-sizing: border-box;
+        padding: 10px 14px 10px 10px; border-radius: 16px; background: #fff6e2; pointer-events: none;
+        box-shadow: 0 0 0 3px #8a6a3e, 0 8px 22px rgba(40, 28, 10, 0.35); transition: opacity 0.35s, transform 0.35s;
+        font: 13px/1.55 "PingFang TC", "Heiti TC", system-ui, sans-serif; color: #5a4024;
+      }
+      #toast.show { opacity: 1; transform: translate(-50%, 0); }
+      #toast img { width: 76px; height: 76px; flex: none; border-radius: 12px; background: #f1e4c4; }
+      #toast small { display: block; font-weight: 800; color: #d2643a; letter-spacing: 1px; }
+      #toast b { font-size: 16px; }
+      #toast p { margin: 2px 0 0; }
+      #book {
+        position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
+        background: rgba(30, 24, 12, 0.45); opacity: 0; pointer-events: none; transition: opacity 0.25s;
+      }
+      #book.open { opacity: 1; pointer-events: auto; }
+      #book .page {
+        position: relative; width: min(560px, 100%); box-sizing: border-box;
+        padding: 30px 18px 18px; border-radius: 20px; background: #fff6e2;
+        box-shadow: 0 0 0 4px #8a6a3e, 0 12px 32px rgba(30, 20, 8, 0.45);
+        font: 13px/1.55 "PingFang TC", "Heiti TC", system-ui, sans-serif; color: #5a4024;
+      }
+      #book .ribbon {
+        position: absolute; left: 50%; top: -14px; transform: translateX(-50%); padding: 4px 20px; border-radius: 12px;
+        font-weight: 800; font-size: 15px; letter-spacing: 3px; color: #fff8e6; background: #d2643a;
+        box-shadow: 0 0 0 2px #8a3a1e, 0 2px 0 2px rgba(80, 30, 10, 0.4); white-space: nowrap;
+      }
+      #book .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; max-height: calc(100vh - 260px); overflow: auto; }
+      #book .slot {
+        display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border: 0; border-radius: 12px;
+        cursor: pointer; background: #f1e4c4; color: inherit; font: inherit; font-weight: 700;
+      }
+      #book .slot:hover { background: #ead7ac; }
+      #book .slot img { width: 72px; height: 72px; }
+      #book .missing img, #book .detail img.unknown { filter: brightness(0) opacity(0.28); }
+      #book .missing span { color: #a89070; }
+      #book .detail { display: flex; gap: 14px; align-items: center; min-height: 96px; margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: #f6ecd4; }
+      #book .detail img { width: 96px; height: 96px; flex: none; }
+      #book .detail b { font-size: 16px; }
+      #book .detail p { margin: 4px 0 0; }
+      #book .detail .lead { color: #a08868; }
+      #book .close {
+        position: absolute; right: 10px; top: 8px; width: 30px; height: 30px; border: 0; border-radius: 50%;
+        font-size: 20px; line-height: 30px; cursor: pointer; background: transparent; color: #8a6a3e;
+      }
+      /* Narrow screens: the radar and its card drop below the minimap's corner. */
+      @media (max-width: 640px) {
+        #radar { top: auto; bottom: 76px; }
+        #toast { top: auto; bottom: 122px; }
+      }
       #sound {
         position: fixed; right: 16px; bottom: 16px; width: 44px; height: 44px;
         font-size: 20px; border: 0; border-radius: 50%; cursor: pointer;
@@ -50,7 +117,7 @@
     </style>
   </head>
   <body>
-    <div id="hint">點一下開啟聲音・WASD / 方向鍵移動・點地面或地圖前往・拖曳 / Q E 轉視角・滾輪縮放・R 下雨・M 開關地圖・閒置 4 秒自動巡遊</div>
+    <div id="hint">點一下開啟聲音・WASD / 方向鍵移動・點地面或地圖前往・拖曳 / Q E 轉視角・滾輪縮放・R 下雨・B 圖鑑・M 開關地圖・閒置 4 秒自動巡遊</div>
     <div id="credit"></div>
     <button id="scene"></button>
     <button id="sound" aria-label="切換聲音">🔈</button>

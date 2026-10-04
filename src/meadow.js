@@ -199,9 +199,14 @@ function build(scene) {
     ]),
   )
 
+  // Routes for the robot, planned around everything placed above.
+  const nav = createNavGrid({ minX: -46, maxX: 46, minZ: -40, maxZ: 42 })
   return {
-    // Routes for the robot, planned around everything placed above.
-    nav: createNavGrid({ minX: -46, maxX: 46, minZ: -40, maxZ: 42 }),
+    nav,
+    relics: RELIC_SPOTS.map(([id, x, z]) => {
+      const [sx, sz] = nav.snap(x, z)
+      return { id, x: sx, z: sz }
+    }),
     update(t, dt) {
       for (const u of updaters) u(t, dt)
     },
@@ -211,6 +216,15 @@ function build(scene) {
     },
   }
 }
+
+// Where each relic lies (see relics.js).
+const RELIC_SPOTS = [
+  ['musicBox', 4.6, -15.4],
+  ['pocketWatch', 5.4, -0.6],
+  ['oldKey', 14.7, -9.6],
+  ['tinCar', 7, 8.4],
+  ['letter', -1, -27],
+]
 
 // Sunny overgrown village: warm low sun, green-tinted shade, a grassy horizon.
 export default {

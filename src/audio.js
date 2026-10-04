@@ -409,6 +409,27 @@ export function createAudio(ambience = 'meadow') {
     }
   }
 
+  // Radar beep: brighter and higher the closer the relic.
+  function ping(signal) {
+    const t = ctx.currentTime
+    const osc = ctx.createOscillator()
+    osc.type = 'sine'
+    osc.frequency.value = 900 + signal * 700
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.03 + signal * 0.04, t + 0.005)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09)
+    osc.connect(g).connect(sfx.fx)
+    osc.start(t)
+    osc.stop(t + 0.1)
+  }
+
+  // A find: a bright little arpeggio up the pentatonic scale.
+  function chime() {
+    const now = ctx.currentTime + 0.02
+    ;[0, 2, 4, 7].forEach((step, i) => pluck(77 + PENTATONIC[step % 5] + (step >= 5 ? 12 : 0), now + i * 0.09, 0.5, 1.4))
+  }
+
   // Calls each kind of animal makes on its own, and how many seconds apart.
   const VOICES = { cow: [moo, 14, 40], chicken: [cluck, 3, 10], pigeon: [coo, 6, 16], cat: [meow, 25, 60], dog: [bark, 30, 70] }
   const CUES = { meow, bark, flutter }
@@ -546,6 +567,12 @@ export function createAudio(ambience = 'meadow') {
     },
     thunder(delay) {
       if (started && enabled) thunder(delay)
+    },
+    ping(signal) {
+      if (started && enabled) ping(signal)
+    },
+    chime() {
+      if (started && enabled) chime()
     },
     update(dt, { listener, robotSpeed, voices = {}, rain = 0 }) {
       if (!started || !enabled) return
