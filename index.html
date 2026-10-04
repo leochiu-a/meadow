@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meadow Bot</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #c9d6a3; }
+      canvas { display: block; }
+      #hint {
+        position: fixed; left: 16px; bottom: 16px;
+        font: 13px/1.5 system-ui, sans-serif; color: #fff;
+        background: rgba(30, 40, 20, 0.45); padding: 8px 12px; border-radius: 8px;
+        pointer-events: none; backdrop-filter: blur(4px); transition: opacity 0.6s;
+      }
+      #hint.dim { opacity: 0.55; }
+      #sound {
+        position: fixed; right: 16px; bottom: 16px; width: 44px; height: 44px;
+        font-size: 20px; border: 0; border-radius: 50%; cursor: pointer;
+        background: rgba(30, 40, 20, 0.45); color: #fff; backdrop-filter: blur(4px);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hint">點一下開啟聲音・WASD / 方向鍵移動・點地面前往・閒置 4 秒自動巡遊</div>
+    <button id="sound" aria-label="切換聲音">🔈</button>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
