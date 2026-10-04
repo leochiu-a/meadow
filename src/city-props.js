@@ -167,78 +167,171 @@ export function redHouseDressing(pts, eaves = 10.6) {
   return g
 }
 
-function exitSignTexture(number) {
+const canvasTexture = (w, h, draw) => {
   const canvas = document.createElement('canvas')
-  canvas.width = 512
-  canvas.height = 128
-  const ctx = canvas.getContext('2d')
-  ctx.fillStyle = '#2b5d9c'
-  ctx.fillRect(0, 0, 512, 128)
-  ctx.fillStyle = '#f4f4f0'
-  ctx.font = '800 58px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
-  ctx.textBaseline = 'middle'
-  ctx.fillText('捷運西門站', 28, 66)
-  ctx.beginPath()
-  ctx.arc(436, 64, 46, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.fillStyle = '#2b5d9c'
-  ctx.font = '900 72px "Helvetica Neue", Arial, sans-serif'
-  ctx.textAlign = 'center'
-  ctx.fillText(String(number), 436, 68)
+  canvas.width = w
+  canvas.height = h
+  draw(canvas.getContext('2d'))
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
+  tex.anisotropy = 4
   return tex
 }
 
-// MRT exit canopy: steel frame and glass, most panes gone, stairs dropping into darkness.
-// Its long axis runs along local z; the signed end faces +z.
-export function mrtExit(x, z, rotY, { number = 6, length = 9 } = {}) {
+// Lintel sign over the mouth: station name in Chinese and English, exit number in a disc.
+function exitSignTexture(number) {
+  return canvasTexture(512, 128, (ctx) => {
+    ctx.fillStyle = '#34383d'
+    ctx.fillRect(0, 0, 512, 128)
+    ctx.fillStyle = '#f2f2ee'
+    ctx.textBaseline = 'middle'
+    ctx.font = '800 52px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
+    ctx.fillText('西門站', 30, 50)
+    ctx.font = '600 26px "Helvetica Neue", Arial, sans-serif'
+    ctx.fillText('Ximen', 34, 100)
+    ctx.beginPath()
+    ctx.arc(440, 64, 44, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#34383d'
+    ctx.font = '900 66px "Helvetica Neue", Arial, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(String(number), 440, 68)
+  })
+}
+
+// Head of the exit totem: a generic metro roundel over the exit number.
+function totemTexture(number) {
+  return canvasTexture(128, 256, (ctx) => {
+    ctx.fillStyle = '#34383d'
+    ctx.fillRect(0, 0, 128, 256)
+    ctx.fillStyle = '#1f6fb6'
+    ctx.beginPath()
+    ctx.arc(64, 64, 50, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = '#f4f4f0'
+    ctx.lineWidth = 9
+    ctx.beginPath()
+    ctx.arc(64, 64, 32, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.fillStyle = '#f4f4f0'
+    ctx.fillRect(24, 59, 80, 10)
+    ctx.font = '900 84px "Helvetica Neue", Arial, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(String(number), 64, 180)
+  })
+}
+
+/**
+ * Taipei-style MRT exit: granite knee walls, glass sides on a white steel frame, a barrel
+ * roof sloping down toward the back, stairs and an escalator dropping into the dark, the
+ * station sign over the mouth and an exit totem beside it. Long axis along local z, the
+ * mouth at +z. Decades on, most of the glass is gone and the roof is torn at the back.
+ */
+export function mrtExit(x, z, rotY, { number = 6, length = 9, width = 4.6 } = {}) {
   const g = new THREE.Group()
-  const steel = cityMat('#7c8286', { kind: 'metal' })
-  const glass = withCutaway(new THREE.MeshStandardMaterial({ color: '#9fb8c0', transparent: true, opacity: 0.28, roughness: 0.1, metalness: 0.2 }))
-  const W = 4
+  const W = width
   const L = length
-  const H = 3.2
+  const wall = 1.0
+  const spring = 2.6
+  const white = cityMat('#d9dcd8', { kind: 'metal', grime: 1.2 })
+  const granite = cityMat('#a29d93', { kind: 'concrete' })
+  const glass = withCutaway(new THREE.MeshStandardMaterial({ color: '#a9c2c8', transparent: true, opacity: 0.3, roughness: 0.1, metalness: 0.2 }))
+
+  // Knee walls of granite on both sides and the back.
   for (const sx of [-1, 1]) {
-    for (let k = 0; k <= 3; k++) {
-      const post = mesh(new THREE.BoxGeometry(0.14, H, 0.14), steel)
-      post.position.set((sx * W) / 2, H / 2, -L / 2 + (k / 3) * L)
+    const side = rbox(0.4, wall, L, 0.04, granite)
+    side.position.set((sx * W) / 2, wall / 2, 0)
+    g.add(side)
+  }
+  const backWall = rbox(W, wall, 0.4, 0.04, granite)
+  backWall.position.set(0, wall / 2, -L / 2)
+  g.add(backWall)
+
+  // Steel posts on the knee walls, glass panes between (most broken out).
+  const bays = Math.max(3, Math.round(L / 1.8))
+  for (const sx of [-1, 1]) {
+    for (let k = 0; k <= bays; k++) {
+      const pz = -L / 2 + (k / bays) * L
+      const post = mesh(new THREE.BoxGeometry(0.1, spring - wall, 0.1), white)
+      post.position.set((sx * W) / 2, (wall + spring) / 2, pz)
       g.add(post)
+      if (k < bays && rand() < 0.3) {
+        const pane = mesh(new THREE.BoxGeometry(0.02, spring - wall - 0.1, L / bays - 0.12), glass)
+        pane.position.set((sx * W) / 2, (wall + spring) / 2, pz + L / bays / 2)
+        pane.userData.dynamic = true
+        g.add(pane)
+      }
     }
+    const rail = mesh(new THREE.BoxGeometry(0.12, 0.12, L), white)
+    rail.position.set((sx * W) / 2, spring, 0)
+    g.add(rail)
   }
-  const roof = mesh(new THREE.BoxGeometry(W + 0.4, 0.18, L + 0.4), steel)
-  roof.position.y = H + 0.1
-  roof.rotation.x = 0.05
-  g.add(roof)
-  for (const sx of [-1, 1]) {
-    for (let k = 0; k < 3; k++) {
-      if (rand() < 0.55) continue
-      const pane = mesh(new THREE.BoxGeometry(0.03, H - 0.4, L / 3 - 0.2), glass)
-      pane.position.set((sx * W) / 2, H / 2, -L / 2 + (k + 0.5) * (L / 3))
-      pane.userData.dynamic = true
-      g.add(pane)
-    }
+
+  // Barrel roof on ribs, its skin torn away over the back third.
+  const r = W / 2 + 0.25
+  const skin = mesh(
+    // Half a tube (theta -90°..90° is the +z half) turned so that half is the top, axis along z.
+    new THREE.CylinderGeometry(r, r, L * 0.68, 20, 1, true, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2),
+    cityMat('#c9cdca', { kind: 'metal', grime: 1.3, side: THREE.DoubleSide }),
+  )
+  skin.scale.y = 0.45
+  skin.position.set(0, spring, L / 2 - (L * 0.68) / 2)
+  g.add(skin)
+  for (let k = 0; k <= bays; k++) {
+    const rib = mesh(new THREE.TorusGeometry(r, 0.06, 4, 16, Math.PI), white)
+    rib.scale.y = 0.45
+    rib.position.set(0, spring, -L / 2 + (k / bays) * L)
+    g.add(rib)
   }
-  const pit = mesh(new THREE.BoxGeometry(W - 0.4, 0.05, L - 1), cityMat('#0e0d0c', { kind: 'paint', grime: 0.2 }))
-  pit.position.y = 0.03
+
+  // Stairs and an escalator dropping into darkness, under the roof.
+  const pit = mesh(new THREE.BoxGeometry(W - 0.8, 0.04, L - 0.8), cityMat('#0c0b0a', { kind: 'paint', grime: 0.1 }))
+  pit.position.y = 0.025
   g.add(pit)
-  for (let i = 0; i < 8; i++) {
-    const step = mesh(new THREE.BoxGeometry(W - 0.5, 0.06, 0.4), cityMat('#6a6862', { kind: 'concrete' }))
-    step.position.set(0, 0.06, L / 2 - 1.2 - i * ((L - 2) / 8))
+  const stepMat = cityMat('#6f6b64', { kind: 'concrete' })
+  for (let i = 0; i < 7; i++) {
+    const step = mesh(new THREE.BoxGeometry(W * 0.48, 0.05, 0.32), stepMat)
+    step.position.set(-W * 0.18, 0.06, L / 2 - 0.9 - i * 0.42)
     g.add(step)
   }
-  // Station sign on the front beam: 捷運西門站 with the exit number in a white disc.
-  const signFace = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: exitSignTexture(number), roughness: 0.6 }), { kind: 'paint', fade: 0.3 }))
-  const edge = cityMat('#2b5d9c', { kind: 'paint', fade: 0.3 })
-  const sign = mesh(new THREE.BoxGeometry(3.2, 0.8, 0.14), [edge, edge, edge, edge, signFace, edge])
-  sign.position.set(0, H - 0.5, L / 2 + 0.1)
-  sign.rotation.z = 0.06
+  const rubber = cityMat('#1b1c1e', { kind: 'paint', grime: 0.5 })
+  for (const ex of [W * 0.12, W * 0.38]) {
+    const handrail = mesh(new THREE.BoxGeometry(0.08, 0.9, L * 0.6), rubber)
+    handrail.position.set(ex, 0.45, L / 2 - 0.6 - L * 0.3)
+    handrail.rotation.x = -0.12
+    g.add(handrail)
+  }
+
+  // Station sign over the mouth, hanging askew off one bolt.
+  const signFace = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: exitSignTexture(number), roughness: 0.6 }), { kind: 'paint', fade: 0.25 }))
+  const edge = cityMat('#34383d', { kind: 'paint' })
+  const sign = mesh(new THREE.BoxGeometry(W - 0.2, 0.9, 0.14), [edge, edge, edge, edge, signFace, edge])
+  sign.position.set(0, spring + 0.55, L / 2 + 0.08)
+  sign.rotation.z = 0.05
   g.add(sign)
+
+  // Exit totem beside the mouth.
+  const totemFace = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: totemTexture(number), roughness: 0.6 }), { kind: 'paint', fade: 0.25 }))
+  const head = mesh(new THREE.BoxGeometry(0.55, 1.1, 0.18), [edge, edge, edge, edge, totemFace, totemFace])
+  head.position.set(W / 2 + 0.9, 2.6, L / 2 - 0.2)
+  const pole = mesh(new THREE.BoxGeometry(0.16, 2.1, 0.16), edge)
+  pole.position.set(W / 2 + 0.9, 1.05, L / 2 - 0.2)
+  g.add(head, pole)
+
   g.position.set(x, 0, z)
   g.rotation.y = rotY
   const c = Math.cos(rotY)
   const s = Math.sin(rotY)
-  addSegment(x - (L / 2) * s, z - (L / 2) * c, x + (L / 2) * s, z + (L / 2) * c, W / 2 + 0.2)
+  // The walls block.
+  for (const sx of [-1, 1]) {
+    const ox = (sx * W) / 2
+    addSegment(x + ox * c - (L / 2) * s, z - ox * s - (L / 2) * c, x + ox * c + (L / 2) * s, z - ox * s + (L / 2) * c, 0.3)
+  }
+  addSegment(x - (W / 2) * c - (L / 2) * s, z + (W / 2) * s - (L / 2) * c, x + (W / 2) * c - (L / 2) * s, z - (W / 2) * s - (L / 2) * c, 0.3)
+  addCircle(x + (W / 2 + 0.9) * c + (L / 2 - 0.2) * s, z - (W / 2 + 0.9) * s + (L / 2 - 0.2) * c, 0.25)
+  // The stairwell itself: no one walks down it and nothing grows over it.
+  addSegment(x - (L / 2 - 0.6) * s, z - (L / 2 - 0.6) * c, x + (L / 2 - 0.6) * s, z + (L / 2 - 0.6) * c, W / 2 - 0.4)
   return g
 }
 

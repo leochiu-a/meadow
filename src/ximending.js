@@ -222,22 +222,14 @@ function dust() {
   return points
 }
 
-// The six-colour rainbow crossing outside Exit 6, where the Hanzhong mall meets Chengdu
-// Road: bands run along the walking direction, straight across the carriageway.
+// The six-colour rainbow crossing as the map has it (a crossing tagged surface:colour=
+// rainbow, just west of Exit 6): bands run along the walking direction.
 function rainbowCrossing() {
-  const [cx, cz] = crossing('成都路', '漢中街')
-  let best = null
-  for (const r of roadsNamed('成都路')) {
-    for (let i = 0; i < r.pts.length - 1; i++) {
-      const [ax, az] = r.pts[i]
-      const [bx, bz] = r.pts[i + 1]
-      const d = Math.hypot((ax + bx) / 2 - cx, (az + bz) / 2 - cz)
-      if (!best || d < best.d) best = { d, angle: Math.atan2(bz - az, bx - ax), width: r.width }
-    }
-  }
-  // A few metres along the road from the junction, on the Exit 6 side.
-  const along = Math.cos(best.angle) > 0 ? 9 : -9
-  return { x: cx + Math.cos(best.angle) * along, z: cz + Math.sin(best.angle) * along, angle: best.angle + Math.PI / 2, length: best.width + 2, width: 6 }
+  const way = data.roads.find((r) => r.colour === 'rainbow')
+  if (!way) return null
+  const [ax, az] = way.pts[0]
+  const [bx, bz] = way.pts[way.pts.length - 1]
+  return { x: (ax + bx) / 2, z: (az + bz) / 2, angle: Math.atan2(bz - az, bx - ax), length: Math.hypot(bx - ax, bz - az) + 1.5, width: 5 }
 }
 
 // ---------------------------------------------------------------- build
@@ -289,12 +281,11 @@ function build(scene) {
     taken.polygon(b.pts)
   }
 
-  // MRT Ximen exits where they really are, each canopy facing its street.
+  // MRT Ximen exits where and how the map draws them.
   for (const e of data.entrances.filter((e) => e.name?.includes('捷運'))) {
-    const [sx, sz] = nearestStreet(e.x, e.z)
-    const yaw = Math.atan2(sx - e.x, sz - e.z)
-    city.add(mrtExit(e.x, e.z, yaw, { number: e.ref, length: 5.2 }))
-    for (const [ox, oz] of rectSamples(e.x, e.z, Math.cos(yaw), -Math.sin(yaw), 7, 9, 10)) taken.mark(ox, oz)
+    const plan = exitPlan(e)
+    city.add(mrtExit(plan.x, plan.z, plan.yaw, { number: e.ref, length: plan.length, width: plan.width }))
+    for (const [ox, oz] of rectSamples(plan.x, plan.z, Math.cos(plan.yaw), -Math.sin(plan.yaw), plan.width + 3, plan.length + 6, 12)) taken.mark(ox, oz)
   }
   // Dead screens on trusses around the Exit 6 square, and one that came down.
   let screens = 0
@@ -338,7 +329,7 @@ function build(scene) {
         const lane = pick([-1, 1]) * r.width * 0.25
         const x = ax + ((bx - ax) * t) / len - ((bz - az) / len) * lane
         const z = az + ((bz - az) * t) / len + ((bx - ax) / len) * lane
-        if (Math.hypot(x, z) < 12 || groundAt(x, z) === GROUND.kept || Math.hypot(x - rainbow.x, z - rainbow.z) < 9) continue
+        if (Math.hypot(x, z) < 12 || groundAt(x, z) === GROUND.kept || (rainbow && Math.hypot(x - rainbow.x, z - rainbow.z) < 9)) continue
         city.add(car(x, z, yaw + (lane > 0 ? 0 : Math.PI) + range(-0.35, 0.35), { taxi: rand() < 0.35, crushed: rand() < 0.15 }))
       }
     }
@@ -384,10 +375,52 @@ function build(scene) {
   return { update() {}, cows: [], chickens: [] }
 }
 
+// An exit's canopy from the small building the map draws over it: centred on that footprint,
+// sized to it, long axis along it, the mouth at whichever end is nearer a street. Without a
+// footprint the canopy just faces its nearest street.
+function exitPlan(e) {
+  const b = data.buildings.find((b) => pointInPolygon(e.x, e.z, b.pts) || b.pts.some(([x, z]) => Math.hypot(x - e.x, z - e.z) < 3))
+  if (!b) {
+    const [sx, sz] = nearestStreet(e.x, e.z)
+    return { x: e.x, z: e.z, yaw: Math.atan2(sx - e.x, sz - e.z), length: 8, width: 4.6 }
+  }
+  const n = b.pts.length
+  const cx = b.pts.reduce((a, p) => a + p[0], 0) / n
+  const cz = b.pts.reduce((a, p) => a + p[1], 0) / n
+  // Principal axis of the footprint.
+  let sxx = 0
+  let szz = 0
+  let sxz = 0
+  for (const [x, z] of b.pts) {
+    sxx += (x - cx) ** 2
+    szz += (z - cz) ** 2
+    sxz += (x - cx) * (z - cz)
+  }
+  const axis = 0.5 * Math.atan2(2 * sxz, sxx - szz)
+  const ux = Math.cos(axis)
+  const uz = Math.sin(axis)
+  const along = b.pts.map(([x, z]) => (x - cx) * ux + (z - cz) * uz)
+  const across = b.pts.map(([x, z]) => -(x - cx) * uz + (z - cz) * ux)
+  const length = Math.max(...along) - Math.min(...along)
+  const width = Math.max(...across) - Math.min(...across)
+  const end = (sign) => {
+    const ex = cx + ux * sign * length * 0.5
+    const ez = cz + uz * sign * length * 0.5
+    const [sx, sz] = nearestStreet(ex, ez)
+    return Math.hypot(sx - ex, sz - ez)
+  }
+  const mouth = end(1) < end(-1) ? 1 : -1
+  return { x: cx, z: cz, yaw: Math.atan2(ux * mouth, uz * mouth), length: Math.min(length, 16), width: Math.min(Math.max(width, 3.6), 6), pts: b.pts }
+}
+
+// Just outside the mouth of Exit 6, as if the robot had come up the stairs.
+const exit6 = exitPlan(data.entrances.find((e) => e.ref === '6'))
+const start = [exit6.x + Math.sin(exit6.yaw) * (exit6.length / 2 + 3), exit6.z + Math.cos(exit6.yaw) * (exit6.length / 2 + 3)]
+
 // Patrol: out of Exit 6, up the Hanzhong mall to Emei Street, west to Xining South Road,
 // back down to Chengdu Road past the Red House, and along Chengdu Road to the exit again.
 const tour = [
-  [0, 4],
+  start,
   crossing('成都路', '漢中街'),
   crossing('漢中街', '峨眉街'),
   crossing('峨眉街', '西寧南路'),
@@ -407,8 +440,7 @@ export default {
     // The meadow's framing, so the turf reads at the same scale.
     camera: { offset: [0, 11, 12.5], hfov: 33 },
   },
-  // On the square by MRT Ximen Exit 6.
-  start: [0, 4],
+  start,
   tour,
   attribution: data.attribution,
   build,

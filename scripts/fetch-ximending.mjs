@@ -58,7 +58,7 @@ for (const e of elements) {
     const [x, z] = toLocal(e)
     entrances.push({ ref: t.ref ?? null, name: t.name ?? null, x, z })
   } else if (e.type === 'way' && t.highway && ROAD_WIDTH[t.highway] && e.geometry) {
-    roads.push({ kind: t.highway, name: t.name ?? null, width: ROAD_WIDTH[t.highway], area: t.area === 'yes', pts: e.geometry.map(toLocal) })
+    roads.push({ kind: t.highway, name: t.name ?? null, width: ROAD_WIDTH[t.highway], area: t.area === 'yes', colour: t['surface:colour'] ?? null, pts: e.geometry.map(toLocal) })
   } else if (t.building) {
     // Relations contribute their outer rings.
     const rings = e.type === 'way' ? [e.geometry] : (e.members ?? []).filter((m) => m.role === 'outer' && m.geometry).map((m) => m.geometry)

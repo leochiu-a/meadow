@@ -77,8 +77,18 @@ const PART_GEOMETRY = {
 const parts = Object.fromEntries(Object.keys(PART_GEOMETRY).map((k) => [k, []]))
 const tmpColor = new THREE.Color()
 
+const partPos = new THREE.Vector3()
+const partQuat = new THREE.Quaternion()
+const partScale = new THREE.Vector3()
+
+// Every part arrives in world space. Concrete chunks big enough to trip over become
+// obstacles, so the robot steers round rubble rather than driving through it.
 function part(kind, matrix, color) {
   parts[kind].push({ matrix, color: tmpColor.set(color).clone() })
+  if (kind !== 'chunk') return
+  matrix.decompose(partPos, partQuat, partScale)
+  const size = (partScale.x + partScale.z) / 2
+  if (size > 0.35 && partPos.y + partScale.y * 0.4 > 0.12) addCircle(partPos.x, partPos.z, size * 0.45)
 }
 
 export function flushCityParts() {
