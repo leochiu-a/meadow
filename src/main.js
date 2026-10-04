@@ -109,10 +109,29 @@ const focus = robot.position.clone()
 camera.position.copy(focus).add(CAMERA_OFFSET)
 camera.lookAt(focus)
 
-const clock = new THREE.Clock()
-renderer.setAnimationLoop(() => {
-  const dt = Math.min(clock.getDelta(), 1 / 20)
-  const t = clock.elapsedTime
+// Power: at most 30 frames a second (a slow diorama loses little), and none at all while
+// the window is in the background. Scene time only advances on rendered frames, so nothing
+// jumps when it resumes.
+const FRAME_MS = 1000 / 30
+let last = 0
+let t = 0
+function frame(now) {
+  if (now - last < FRAME_MS - 2) return
+  const dt = last ? Math.min((now - last) / 1000, 1 / 20) : 1 / 30
+  last = now
+  t += dt
+  step(dt)
+}
+const run = () => renderer.setAnimationLoop(frame)
+const pause = () => {
+  renderer.setAnimationLoop(null)
+  last = 0
+}
+addEventListener('blur', pause)
+addEventListener('focus', run)
+run()
+
+function step(dt) {
   windUniforms.uTime.value = t
   robot.update(t, dt)
   world.update(t, dt)
@@ -131,6 +150,6 @@ renderer.setAnimationLoop(() => {
   sun.position.copy(focus).addScaledVector(look.sunDirection, 40)
   sun.target.position.copy(focus)
 
-  minimap?.update(robot.position, robot.heading, focus)
+  minimap?.update(robot.position, robot.heading, t)
   composer.render(dt)
-})
+}

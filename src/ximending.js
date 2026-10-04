@@ -3,7 +3,7 @@ import { setTerrain, noise, rand, range, pick, smoothstep } from './terrain.js'
 import { windUniforms } from './wind.js'
 import { createCityGround, GROUND, SIDEWALK, VEHICLE, MALL } from './city-ground.js'
 import { shophouse, mappedBuilding, toppledTower, flushCityParts, batchStatic, cityMat, GROUND_FLOOR, FLOOR } from './city.js'
-import { buildBlockers } from './collision.js'
+import { buildBlockers, colliders } from './collision.js'
 import { car, streetLamp, redHouseDressing, mrtExit, giantScreen, discLamp, mallPole, facadeAd, newWorldTower, cinemaFront, ringTotem, haloPole, rooftopBillboard, noodleStand } from './city-props.js'
 import { graffiti } from './graffiti.js'
 import { createGrass, createFlowers, createReeds, createTree, createBush } from './vegetation.js'
@@ -259,7 +259,7 @@ function build(scene) {
   const tower = toppledTower({ x: towerBase[0], z: towerBase[1], rotY: fall, w: 8, d: 9, floors: 8 })
   city.add(tower.group)
   // What the minimap shows: every footprint and how ruined it is, the exits, the tower.
-  const plan = { footprints: [], exits: [], tower, rainbow }
+  const plan = { footprints: [] }
   const tdx = Math.sin(fall)
   const tdz = Math.cos(fall)
   const towerLen = Math.hypot(tower.to[0] - tower.from[0], tower.to[1] - tower.from[1])
@@ -327,7 +327,6 @@ function build(scene) {
   // MRT Ximen exits where and how the map draws them.
   for (const e of data.entrances.filter((e) => e.name?.includes('捷運'))) {
     const exit = exitPlan(e)
-    plan.exits.push({ x: exit.x, z: exit.z, ref: e.ref })
     city.add(mrtExit(exit.x, exit.z, exit.yaw, { number: e.ref, length: exit.length, width: exit.width }))
     for (const [ox, oz] of rectSamples(exit.x, exit.z, Math.cos(exit.yaw), -Math.sin(exit.yaw), exit.width + 3, exit.length + 6, 12)) taken.mark(ox, oz)
   }
@@ -470,7 +469,7 @@ function build(scene) {
   scene.add(createReeds(reeds))
   scene.add(dust())
 
-  return { update() {}, cows: [], chickens: [], minimap: { bounds: data.bounds, draw: (ctx, px) => drawPlan(ctx, px, plan) } }
+  return { update() {}, cows: [], chickens: [], minimap: { bounds: data.bounds, title: '西門町', draw: (ctx, px) => drawPlan(ctx, px, plan) } }
 }
 
 // Nearest point on a named street's centreline, with the unit normal pointing from the
@@ -632,14 +631,15 @@ function exitPlan(e) {
 const exit6 = exitPlan(data.entrances.find((e) => e.ref === '6'))
 const start = [exit6.x + Math.sin(exit6.yaw) * (exit6.length / 2 + 3), exit6.z + Math.cos(exit6.yaw) * (exit6.length / 2 + 3)]
 
-// The minimap: streets as they were (named ones labelled), footprints shaded by what is
-// left of them, the Red House, the toppled tower, the rainbow crossing and the MRT exits.
-const RUIN_STYLE = {
-  none: { fill: '#c9c1ae', stroke: '#8a8270' },
-  lean: { fill: '#b9b09c', stroke: '#8a8270' },
-  shell: { fill: 'rgba(150,142,124,0.35)', stroke: '#9a917d' },
-  collapsed: { fill: 'rgba(120,112,98,0.55)', stroke: null },
-  landmark: { fill: '#b8553f', stroke: '#7a2f22' },
+// The minimap, drawn like a game map: soft meadow ground, cartoon roads with a dark
+// outline, blocks as plain soft shapes. No labels or markers.
+const MAP = {
+  ground: '#9ccf6a',
+  groundDot: 'rgba(255,255,255,0.12)',
+  roadEdge: '#6b5a3e',
+  road: '#f3e2b3',
+  block: '#cfc6ad',
+  blockShade: 'rgba(80,64,40,0.25)',
 }
 
 function drawPlan(ctx, px, plan) {
@@ -648,84 +648,59 @@ function drawPlan(ctx, px, plan) {
     pts.forEach(([x, z], i) => (i ? ctx.lineTo(...px(x, z)) : ctx.moveTo(...px(x, z))))
     if (close) ctx.closePath()
   }
-  const scale = px(1, 0)[0] - px(0, 0)[0]
-  ctx.lineCap = ctx.lineJoin = 'round'
-  // Streets: carriageways and malls drawn wide and pale on the meadow green.
-  for (const r of streets) {
-    path(r.pts)
-    ctx.strokeStyle = MALL.has(r.kind) ? 'rgba(214,206,186,0.55)' : 'rgba(196,190,176,0.7)'
-    ctx.lineWidth = Math.max(1.5, (r.width + (VEHICLE.has(r.kind) ? SIDEWALK * 2 : 0)) * scale)
-    ctx.stroke()
-  }
-  if (plan.rainbow) {
-    const { x, z, angle, length, width } = plan.rainbow
-    const colours = ['#d8463c', '#e8873a', '#e8c63e', '#4f9a4a', '#3c6fb4', '#7c4a9a']
-    colours.forEach((c, i) => {
-      const off = -width / 2 + (i + 0.5) * (width / 6)
-      const ox = -Math.sin(angle) * off
-      const oz = Math.cos(angle) * off
-      path([[x + ox - (Math.cos(angle) * length) / 2, z + oz - (Math.sin(angle) * length) / 2], [x + ox + (Math.cos(angle) * length) / 2, z + oz + (Math.sin(angle) * length) / 2]])
-      ctx.strokeStyle = c
-      ctx.lineWidth = Math.max(1, (width / 6) * scale)
-      ctx.stroke()
-    })
-  }
-  for (const { pts, ruin } of plan.footprints) {
-    const style = RUIN_STYLE[ruin]
-    path(pts, true)
-    ctx.fillStyle = style.fill
+  // Size in map units: the canvas may be scaled up for high-DPI screens.
+  const w = ctx.canvas.width / ctx.getTransform().a
+  const h = ctx.canvas.height / ctx.getTransform().d
+  // Ground with a scatter of soft dots, like painted grass.
+  ctx.fillStyle = MAP.ground
+  ctx.fillRect(0, 0, w, h)
+  ctx.fillStyle = MAP.groundDot
+  for (let i = 0; i < 260; i++) {
+    ctx.beginPath()
+    ctx.arc(rand() * w, rand() * h, 0.8 + rand() * 1.4, 0, Math.PI * 2)
     ctx.fill()
-    if (style.stroke) {
-      ctx.strokeStyle = style.stroke
-      ctx.lineWidth = 1
+  }
+  // What blocks the robot, as it really is: buildings still standing are solid blocks
+  // (nothing gets inside them); for everything else — ruined walls, rubble, columns, trees,
+  // wrecked cars — each collider is drawn at its true size, so open ground on the map is
+  // open ground in the scene.
+  const scale = px(1, 0)[0] - px(0, 0)[0]
+  const SOLID = new Set(['none', 'lean', 'landmark'])
+  const solids = plan.footprints.filter((f) => SOLID.has(f.ruin))
+  const inSolid = (x, z) => solids.some((f) => pointInPolygon(x, z, f.pts))
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  for (const offset of [1.5, 0]) {
+    ctx.save()
+    ctx.translate(0, offset)
+    ctx.fillStyle = ctx.strokeStyle = offset ? MAP.blockShade : MAP.block
+    for (const { pts } of solids) {
+      path(pts, true)
+      ctx.lineWidth = 2.5
+      ctx.fill()
       ctx.stroke()
     }
-  }
-  const { from, to, halfWidth } = plan.tower
-  path([from, to])
-  ctx.strokeStyle = 'rgba(150,142,124,0.85)'
-  ctx.lineWidth = halfWidth * 2 * scale
-  ctx.lineCap = 'butt'
-  ctx.stroke()
-  // Street names along their longest segment.
-  ctx.font = '600 10px "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  const labelled = new Set()
-  for (const r of [...streets].sort((a, b) => b.width - a.width)) {
-    if (!r.name || labelled.has(r.name) || r.name.includes('巷')) continue
-    let best = null
-    for (let i = 0; i < r.pts.length - 1; i++) {
-      const [ax, az] = r.pts[i]
-      const [bx, bz] = r.pts[i + 1]
-      const len = Math.hypot(bx - ax, bz - az)
-      if (!best || len > best.len) best = { len, ax, az, bx, bz }
+    for (const c of colliders) {
+      if (inSolid((c.ax + c.bx) / 2, (c.az + c.bz) / 2)) continue
+      const [ax, ay] = px(c.ax, c.az)
+      const [bx, by] = px(c.bx, c.bz)
+      ctx.lineWidth = Math.max(1.6, c.r * 2 * scale)
+      ctx.beginPath()
+      ctx.moveTo(ax, ay)
+      ctx.lineTo(bx + (ax === bx && ay === by ? 0.01 : 0), by)
+      ctx.stroke()
     }
-    if (best.len < 25) continue
-    labelled.add(r.name)
-    const [mx, my] = px((best.ax + best.bx) / 2, (best.az + best.bz) / 2)
-    let a = Math.atan2(best.bz - best.az, best.bx - best.ax)
-    if (a > Math.PI / 2) a -= Math.PI
-    if (a < -Math.PI / 2) a += Math.PI
-    ctx.save()
-    ctx.translate(mx, my)
-    ctx.rotate(a)
-    ctx.lineWidth = 3
-    ctx.strokeStyle = 'rgba(40,52,28,0.85)'
-    ctx.strokeText(r.name, 0, 0)
-    ctx.fillStyle = '#f4f0e4'
-    ctx.fillText(r.name, 0, 0)
     ctx.restore()
   }
-  for (const e of plan.exits) {
-    const [ex, ey] = px(e.x, e.z)
-    ctx.fillStyle = '#1f6fb6'
-    ctx.beginPath()
-    ctx.arc(ex, ey, 7, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = '#ffffff'
-    ctx.font = '800 9px "Helvetica Neue", Arial, sans-serif'
-    ctx.fillText(e.ref, ex, ey + 0.5)
+  // Roads: an outline pass then the fill, two widths only — main roads and the rest.
+  const width = (r) => (['primary', 'secondary', 'tertiary'].includes(r.kind) ? 9 : MALL.has(r.kind) ? 7 : 5)
+  for (const [colour, extra] of [[MAP.roadEdge, 2.5], [MAP.road, 0]]) {
+    for (const r of streets) {
+      path(r.pts)
+      ctx.strokeStyle = colour
+      ctx.lineWidth = width(r) + extra
+      ctx.stroke()
+    }
   }
 }
 

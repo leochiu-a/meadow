@@ -1,13 +1,13 @@
-// Corner minimap: the scene's own plan drawn once into a backing canvas, then each frame the
-// robot's marker and the patch the camera is looking at. North is up, as in the scene.
+// Corner minimap in a game-UI frame: the scene's own plan drawn once into a backing canvas,
+// then each frame the robot's marker with a breathing halo. North is up, as in the scene.
 // Clicking the map sends the robot there; M toggles it.
 
-const SIZE = 232
-const PAD = 8
+const SIZE = 220
+const PAD = 6
 
 /**
- * spec: { bounds: { minX, maxX, minZ, maxZ }, draw(ctx, px) } where px(x, z) → canvas [u, v].
- * onPick(x, z) is called with the world point under a click.
+ * spec: { bounds: { minX, maxX, minZ, maxZ }, title, draw(ctx, px) } where px(x, z) → canvas
+ * [u, v]. onPick(x, z) is called with the world point under a click.
  */
 export function createMinimap(spec, onPick) {
   const { minX, maxX, minZ, maxZ } = spec.bounds
@@ -18,24 +18,25 @@ export function createMinimap(spec, onPick) {
   const px = (x, z) => [PAD + (x - minX) * scale, PAD + (z - minZ) * scale]
   const toWorld = (u, v) => [minX + (u - PAD) / scale, minZ + (v - PAD) / scale]
 
-  // The static plan, drawn once.
+  // The static plan, drawn once at map resolution.
   const plan = document.createElement('canvas')
   plan.width = w * dpr
   plan.height = h * dpr
   const pctx = plan.getContext('2d')
   pctx.scale(dpr, dpr)
-  pctx.fillStyle = '#5d7d35'
-  pctx.fillRect(0, 0, w, h)
   spec.draw(pctx, px)
 
+  const frame = document.createElement('div')
+  frame.id = 'minimap'
+  frame.innerHTML = `<div class="ribbon">${spec.title ?? ''}</div><div class="compass">N</div>`
   const canvas = document.createElement('canvas')
-  canvas.id = 'minimap'
   canvas.width = w * dpr
   canvas.height = h * dpr
   canvas.style.width = `${w}px`
   canvas.style.height = `${h}px`
   canvas.title = '點地圖讓機器人前往・M 開關地圖'
-  document.body.appendChild(canvas)
+  frame.appendChild(canvas)
+  document.body.appendChild(frame)
   const ctx = canvas.getContext('2d')
 
   canvas.addEventListener('pointerdown', (e) => {
@@ -44,35 +45,42 @@ export function createMinimap(spec, onPick) {
     onPick(...toWorld(e.clientX - r.left, e.clientY - r.top))
   })
   addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'm') canvas.classList.toggle('hidden')
+    if (e.key.toLowerCase() === 'm') frame.classList.toggle('hidden')
   })
 
   return {
-    // robot: world position and heading (radians, 0 = +x); view: camera focus point.
-    update(robot, heading, view) {
-      if (canvas.classList.contains('hidden')) return
+    // robot: world position; heading in radians (0 = +x).
+    update(robot, heading, t) {
+      if (frame.classList.contains('hidden')) return
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.drawImage(plan, 0, 0, w, h)
-      // Roughly what the camera frames, around its focus.
-      const [vx, vy] = px(view.x, view.z)
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)'
-      ctx.lineWidth = 1
-      ctx.strokeRect(vx - 14 * scale, vy - 10 * scale, 28 * scale, 18 * scale)
-      // The robot: a white arrow pointing where it heads.
       const [rx, ry] = px(robot.x, robot.z)
+      // Breathing halo.
+      const pulse = (t * 0.9) % 1
+      ctx.strokeStyle = `rgba(255,255,255,${0.8 * (1 - pulse)})`
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(rx, ry, 7 + pulse * 9, 0, Math.PI * 2)
+      ctx.stroke()
+      // White disc with an orange arrow pointing where the robot heads.
       ctx.save()
       ctx.translate(rx, ry)
-      ctx.rotate(-heading)
+      ctx.fillStyle = 'rgba(40,30,15,0.35)'
       ctx.beginPath()
-      ctx.moveTo(8, 0)
-      ctx.lineTo(-5, 5)
-      ctx.lineTo(-2.5, 0)
-      ctx.lineTo(-5, -5)
-      ctx.closePath()
+      ctx.arc(0, 1.5, 7.5, 0, Math.PI * 2)
+      ctx.fill()
       ctx.fillStyle = '#ffffff'
-      ctx.strokeStyle = 'rgba(20,24,16,0.9)'
-      ctx.lineWidth = 1.5
-      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(0, 0, 7.5, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.rotate(-heading)
+      ctx.fillStyle = '#ff7a2a'
+      ctx.beginPath()
+      ctx.moveTo(5.5, 0)
+      ctx.lineTo(-3.5, 4)
+      ctx.lineTo(-1.5, 0)
+      ctx.lineTo(-3.5, -4)
+      ctx.closePath()
       ctx.fill()
       ctx.restore()
     },
