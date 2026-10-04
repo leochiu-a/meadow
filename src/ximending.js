@@ -8,13 +8,25 @@ import { car, streetLamp, redHouseDressing, mrtExit, giantScreen } from './city-
 import { createGrass, createFlowers, createReeds, createTree, createBush } from './vegetation.js'
 import { brickMaterial } from './bricks.js'
 import { withCutaway } from './cutaway.js'
-import data from './data/ximending.json'
+import osm from './data/ximending.json'
 
 // Ruined Ximending, laid out from the real street plan (OpenStreetMap): the district decades
 // after it emptied out. Streets crack and green over, signs hang dead, and some blocks have
 // come down altogether. MRT Ximen Exit 6 is the origin.
 
 const cityTerrain = { heightAt: () => 0 }
+
+// The scene covers the core from the Red House to Exit 6 and up to Emei Street: small enough
+// to carry meadow-thick grass. Map features outside it are dropped.
+const VIEW = { minX: -175, maxX: 45, minZ: -135, maxZ: 75 }
+const inView = ([x, z]) => x > VIEW.minX && x < VIEW.maxX && z > VIEW.minZ && z < VIEW.maxZ
+const data = {
+  ...osm,
+  bounds: VIEW,
+  roads: osm.roads.filter((r) => r.pts.some(inView)),
+  buildings: osm.buildings.filter((b) => b.pts.every(inView)),
+  entrances: osm.entrances.filter((e) => inView([e.x, e.z])),
+}
 const { minX, maxX, minZ, maxZ } = data.bounds
 
 // ---------------------------------------------------------------- occupancy
@@ -136,35 +148,54 @@ function alongKerbs(step, fn) {
 
 // ---------------------------------------------------------------- vegetation rules
 
-// How far nature has taken back each spot: whole stretches gone to meadow, the rest only
-// greening along cracks and at the foot of walls.
+// How far nature has taken back each spot: wild stretches have lost all their paving.
 const reclaimed = (x, z) => noise.noise(x * 0.06 + 11, z * 0.06) * 0.5 + 0.5
-const GREENS = ['#6f9a2e', '#86a83a', '#5e8a2a', '#9fb04a']
-const STRAW = ['#b9a35a', '#a89048', '#c8b46a']
-const tmpColor = new THREE.Color()
 const cellKey = (x, z) => Math.round(x / 0.5) * 100000 + Math.round(z / 0.5)
 
-function cityGrass(blocked, groundAt, crackCells) {
+// The meadow scene's palette: lush greens with sun-dried orange swathes.
+const GRASS = ['#5aa426', '#98cc34', '#cfe06a'].map((c) => new THREE.Color(c))
+const DRY = ['#d9862e', '#eeb04a'].map((c) => new THREE.Color(c))
+const tmpColor = new THREE.Color()
+
+function meadowColor(x, z, color) {
+  const n = noise.noise(x * 0.08, z * 0.08) * 0.5 + 0.5
+  const m = noise.noise(x * 0.4 + 10, z * 0.4) * 0.5 + 0.5
+  color.copy(GRASS[0]).lerp(GRASS[1], n).lerp(GRASS[2], m * m * 0.6)
+  const dry = smoothstep(0.74, 0.9, noise.noise(x * 0.05 + 40, z * 0.05) * 0.5 + 0.5)
+  if (dry > 0) color.lerp(tmpColor.copy(DRY[0]).lerp(DRY[1], m), dry * 0.7)
+  const patch = noise.noise(x * 0.9 + 3, z * 0.9) * 0.5 + 0.5
+  return color.offsetHSL(range(-0.02, 0.02) + (patch - 0.5) * 0.03, range(-0.04, 0.04), (patch - 0.5) * 0.14 + range(-0.04, 0.04))
+}
+
+// Meadow wherever earth shows through; on surviving paving only the odd weed in a crack.
+function cityGrass(blocked, groundAt, overgrownAt, crackCells) {
   return (x, z, color) => {
     if (blocked(x, z)) return 0
-    const ground = groundAt(x, z)
-    const wild = reclaimed(x, z)
-    let chance = ground === GROUND.lot ? 0.6 : 0.04
-    chance += smoothstep(0.55, 0.8, wild) * 0.85
-    if (crackCells.has(cellKey(x, z))) chance += 0.7
-    if (rand() > chance) return 0
-    // Dry and green swathes follow broad noise so the weeds read as patches, not confetti.
-    const dry = noise.noise(x * 0.11 - 7, z * 0.11) * 0.5 + 0.5
-    color.set(pick(dry > 0.55 ? STRAW : GREENS)).lerp(tmpColor.set(pick(dry > 0.55 ? GREENS : STRAW)), Math.abs(dry - 0.55) < 0.08 ? 0.5 : 0)
-    color.offsetHSL(range(-0.015, 0.015), range(-0.05, 0.02), range(-0.04, 0.04) + (reclaimed(x * 3, z * 3) - 0.5) * 0.1)
-    return range(0.18, 0.4) * (0.7 + wild * 0.8)
+    const open = overgrownAt(x, z)
+    // Turf creeps over what paving survives, and weeds come up through the cracks.
+    // The rainbow crossing is kept mostly clear so its bands still read.
+    const sparse = groundAt(x, z) === GROUND.kept ? 0.08 : 0.25
+    if (open < 0.45 && rand() > (crackCells.has(cellKey(x, z)) ? 0.6 : sparse)) return 0
+    const clump = noise.noise(x * 0.5, z * 0.5) * 0.5 + 0.5
+    if (open >= 0.45 && rand() > 0.6 + clump * 0.4) return 0
+    meadowColor(x, z, color)
+    const tall = range(0.24, 0.46) * (0.75 + clump * 0.7)
+    return open >= 0.45 ? tall : tall * 0.6
   }
 }
 
-function cityFlowers(blocked) {
+const SPECKS = ['#ffffff', '#f2eefc', '#e3dcf6', '#d9d2f2', '#fffbe8']
+const DRIFTS = [['#ff5a5a', '#ff7a6a'], ['#6f8cff', '#8aa4ff'], ['#c88cff', '#b07af0'], ['#ff8fb8', '#ffb3cf']]
+
+// Pale specks through the turf, saturated colour in tight drifts, as in the meadow.
+function cityFlowers(blocked, overgrownAt) {
   return (x, z) => {
-    if (blocked(x, z) || reclaimed(x, z) < 0.6 || rand() > 0.35) return null
-    return { color: pick(['#ffffff', '#f4e9b0', '#e8c8f0', '#ffd24a']), big: false }
+    if (blocked(x, z) || overgrownAt(x, z) < 0.45) return null
+    const swathe = noise.noise(x * 0.12 - 20, z * 0.12) * 0.5 + 0.5
+    const big = noise.noise(x * 0.18 + 30, z * 0.18) * 0.5 + 0.5 > 0.76
+    if (!big && rand() > swathe ** 1.5 * 0.8) return null
+    const drift = DRIFTS[Math.floor((noise.noise(x * 0.07, z * 0.07 + 9) * 0.5 + 0.5) * 3.99) % 4]
+    return { color: big ? pick(drift) : pick(SPECKS), big }
   }
 }
 
@@ -191,13 +222,33 @@ function dust() {
   return points
 }
 
+// The six-colour rainbow crossing outside Exit 6, where the Hanzhong mall meets Chengdu
+// Road: bands run along the walking direction, straight across the carriageway.
+function rainbowCrossing() {
+  const [cx, cz] = crossing('成都路', '漢中街')
+  let best = null
+  for (const r of roadsNamed('成都路')) {
+    for (let i = 0; i < r.pts.length - 1; i++) {
+      const [ax, az] = r.pts[i]
+      const [bx, bz] = r.pts[i + 1]
+      const d = Math.hypot((ax + bx) / 2 - cx, (az + bz) / 2 - cz)
+      if (!best || d < best.d) best = { d, angle: Math.atan2(bz - az, bx - ax), width: r.width }
+    }
+  }
+  // A few metres along the road from the junction, on the Exit 6 side.
+  const along = Math.cos(best.angle) > 0 ? 9 : -9
+  return { x: cx + Math.cos(best.angle) * along, z: cz + Math.sin(best.angle) * along, angle: best.angle + Math.PI / 2, length: best.width + 2, width: 6 }
+}
+
 // ---------------------------------------------------------------- build
 
-const RUINS = (r) => (r < 0.15 ? 'collapsed' : r < 0.35 ? 'shell' : 'none')
+// Decades on, few blocks stand whole: most are gutted shells, many have come down.
+const RUINS = (r) => (r < 0.35 ? 'collapsed' : r < 0.85 ? 'shell' : 'none')
 
 function build(scene) {
   setTerrain(cityTerrain)
-  const { mesh, cracks, groundAt } = createCityGround(data)
+  const rainbow = rainbowCrossing()
+  const { mesh, cracks, groundAt, overgrownAt } = createCityGround(data, { wild: reclaimed, rainbow })
   scene.add(mesh)
   const taken = occupancy()
   const city = new THREE.Group()
@@ -271,7 +322,7 @@ function build(scene) {
       if (samples.some(([sx, sz]) => taken.has(sx, sz) || groundAt(sx, sz) !== GROUND.lot)) return
       for (const [sx, sz] of rectSamples(cx, cz, dx, dz, w + 0.6, d + 0.6, 10)) taken.mark(sx, sz)
       const r = rand()
-      const ruin = r < 0.14 ? 'collapsed' : r < 0.3 ? 'shell' : r < 0.36 ? 'lean' : 'none'
+      const ruin = r < 0.35 ? 'collapsed' : r < 0.8 ? 'shell' : r < 0.88 ? 'lean' : 'none'
       city.add(shophouse({ x, z, w, d, floors: Math.floor(range(2, 7)), rotY: Math.atan2(fx, fz), signs: rand() < 0.6 ? 2 : 1, ruin }))
     },
   )
@@ -287,7 +338,7 @@ function build(scene) {
         const lane = pick([-1, 1]) * r.width * 0.25
         const x = ax + ((bx - ax) * t) / len - ((bz - az) / len) * lane
         const z = az + ((bz - az) * t) / len + ((bx - ax) / len) * lane
-        if (Math.hypot(x, z) < 12) continue
+        if (Math.hypot(x, z) < 12 || groundAt(x, z) === GROUND.kept || Math.hypot(x - rainbow.x, z - rainbow.z) < 9) continue
         city.add(car(x, z, yaw + (lane > 0 ? 0 : Math.PI) + range(-0.35, 0.35), { taxi: rand() < 0.35, crushed: rand() < 0.15 }))
       }
     }
@@ -308,15 +359,15 @@ function build(scene) {
   for (const pts of cracks) for (const [x, z] of pts) crackCells.add(cellKey(x, z))
   const bounds = [minX + 1, maxX - 1, minZ + 1, maxZ - 1]
   const area = (maxX - minX) * (maxZ - minZ)
-  scene.add(createGrass({ bounds, target: Math.round(area * 1.1), place: cityGrass(blocked, groundAt, crackCells) }))
-  scene.add(createFlowers({ bounds, target: Math.round(area * 0.15), place: cityFlowers(blocked) }))
+  scene.add(createGrass({ bounds, target: Math.round(area * 13), place: cityGrass(blocked, groundAt, overgrownAt, crackCells) }))
+  scene.add(createFlowers({ bounds, target: Math.round(area * 1.2), place: cityFlowers(blocked, overgrownAt) }))
   // Trees seeded in the streets themselves, thickest where the street has gone wild, but
   // never crowding the station exits.
   let trees = 0
-  for (let tries = 0; tries < 20000 && trees < area / 1400; tries++) {
+  for (let tries = 0; tries < 20000 && trees < area / 700; tries++) {
     const x = range(minX, maxX)
     const z = range(minZ, maxZ)
-    if (blocked(x, z) || taken.has(x, z) || reclaimed(x, z) < 0.58 || groundAt(x, z) === GROUND.lot) continue
+    if (blocked(x, z) || taken.has(x, z) || reclaimed(x, z) < 0.5 || overgrownAt(x, z) < 0.45) continue
     if (data.entrances.some((e) => Math.hypot(e.x - x, e.z - z) < 7)) continue
     scene.add(rand() < 0.65 ? createTree(x, z, range(0.8, 1.4)) : createBush(x, z, range(0.8, 1.5)))
     trees++
@@ -353,8 +404,8 @@ export default {
     hemi: ['#d6dcd8', '#5a5040', 0.95],
     sun: ['#ffd8a6', 4.2],
     sunDirection: new THREE.Vector3(-12, 14, -8).normalize(),
-    // Higher and further back than the meadow so streets read between the buildings.
-    camera: { offset: [0, 26, 22], hfov: 40 },
+    // A touch higher than the meadow so the robot reads over the ruined walls.
+    camera: { offset: [0, 13, 13.5], hfov: 34 },
   },
   // On the square by MRT Ximen Exit 6.
   start: [0, 4],

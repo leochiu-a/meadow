@@ -221,22 +221,28 @@ function rubble(local, x, z, { radius, height, count, tint = null }) {
 }
 
 /**
- * Wall slab w wide whose top edge has broken away: full height `h` at one end, falling
- * toward the other by `broken` (0..1) with a ragged profile. Rectangular `holes` that still
+ * Wall slab w wide whose top edge has broken away: about `broken` (0..1) of its height `h`
+ * gone, the break stepped along floor lines with a ragged profile. Rectangular `holes` that still
  * sit below the break become empty window openings. Faces +z, base at y = 0, 0.3 thick.
  */
 function jaggedWall(w, h, broken, holes = []) {
   const steps = Math.max(4, Math.round(w / 0.45))
   const top = []
-  const tiltLeft = rand() < 0.5
   const seed = rand() * 100
+  // Concrete breaks along its floors: a break level, then runs of 1-3 m stepped up or down
+  // a storey or so from it, with ragged chips along each run.
+  const level = Math.max(1.2, h * (1 - broken * range(0.4, 1)))
+  let runEnd = -1
+  let runY = level
   for (let i = 0; i <= steps; i++) {
     const t = i / steps
-    const slope = tiltLeft ? t : 1 - t
-    // Rolling break line with the odd deep notch where a chunk came away.
-    const wobble = (noise.noise(t * 3 + seed, seed) * 0.5 + 0.5) * 0.7 + (rand() < 0.12 ? range(0.6, 1.4) : 0)
-    const y = h * (1 - broken * slope ** 0.8) - (i > 0 && i < steps ? wobble : 0)
-    top.push([-w / 2 + t * w, Math.max(0.6, y)])
+    const x = -w / 2 + t * w
+    if (x > runEnd) {
+      runEnd = x + range(1, 3)
+      runY = Math.min(h, Math.max(0.8, level + Math.round(range(-1.4, 1)) * FLOOR * range(0.5, 1)))
+    }
+    const chip = (noise.noise(t * 6 + seed, seed) * 0.5 + 0.5) * 0.45 + (rand() < 0.1 ? range(0.3, 0.9) : 0)
+    top.push([x, Math.max(0.6, runY - (i > 0 && i < steps ? chip : 0))])
   }
   const shape = new THREE.Shape()
   shape.moveTo(-w / 2, 0)
@@ -525,8 +531,28 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
   const shutterColor = pick(['#8f8a80', '#7d8288', '#a39d90', '#6e6a62'])
   const add = (kind, m, color) => local.push([kind, m, color])
 
+  // Arcades (騎樓) along the street: the ground floor steps back ARCADE metres behind a row
+  // of columns while the floors above carry on out to the street line.
+  const span = Math.sqrt(Math.abs(polygonArea(pts)))
+  const isArcade = (e) => span > 8 && e.len >= 4 && streetSide(e)
+  const rawArcade = pts.map(([ax, az], i) => {
+    const [bx, bz] = pts[(i + 1) % pts.length]
+    const len = Math.hypot(bx - ax, bz - az) || 1
+    const mx = (ax + bx) / 2
+    const mz = (az + bz) / 2
+    const flip = (bz - az) * (mx - cx) - (bx - ax) * (mz - cz) < 0 ? -1 : 1
+    return isArcade({ len, mx, mz, nx: (flip * (bz - az)) / len, nz: (-flip * (bx - ax)) / len })
+  })
+  const inset = rawArcade.some(Boolean) ? insetFootprint(pts, rawArcade, ARCADE) : null
+  const arcadeDepth = (e) => (isArcade(e) && (inset || ruin !== 'none') ? ARCADE : 0)
+
   if (ruin === 'none') {
-    g.add(extrudeFootprint(pts, height, clad))
+    if (inset) {
+      g.add(extrudeFootprint(pts, height - GROUND, clad, GROUND))
+      g.add(extrudeFootprint(inset, GROUND, plain))
+    } else {
+      g.add(extrudeFootprint(pts, height, clad))
+    }
     // Roof clutter on the bigger roofs.
     if (rand() < 0.7) {
       const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.3, 14), cityMat(pick(['#9ea4a8', '#3f6fa0', '#c8c2b0']), { kind: pick(['metal', 'paint']) }))
@@ -536,22 +562,31 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
   } else {
     const top = ruin === 'shell' ? height : GROUND + FLOOR * range(0.4, 1.3)
     for (const e of edges) {
+      // Some walls have come down entirely.
+      if (rand() < 0.25) continue
       const holes = []
       const bays = windowBays(e.len)
       for (let f = 0; f < floors; f++) for (let b = 0; b < bays; b++) holes.push({ x: -e.len / 2 + (b + 0.5) * (e.len / bays), y: GROUND + f * FLOOR + 0.95, w: Math.min(1.8, (e.len / bays) * 0.7), h: 1.4 })
-      const wall = new THREE.Mesh(jaggedWall(e.len + 0.3, top * range(0.75, 1), range(0.3, 0.85), e.len > 3 ? holes : []), clad)
+      const wall = new THREE.Mesh(jaggedWall(e.len + 0.3, top * range(0.35, 0.95), range(0.4, 0.95), e.len > 3 ? holes : []), clad)
       wall.position.set(e.mx, 0, e.mz)
       wall.rotation.y = e.yaw
       g.add(wall)
     }
-    const span = Math.sqrt(Math.abs(polygonArea(pts)))
     if (ruin === 'collapsed') {
       const slabMat = cityMat(pick(CONCRETE))
-      for (let i = 0; i < Math.min(5, floors); i++) {
-        const slab = box(span * range(0.5, 0.8), 0.3, span * range(0.4, 0.7), slabMat)
-        slab.position.set(cx + range(-1, 1), GROUND * 0.4 + i * range(0.6, 1.1), cz + range(-1, 1))
-        slab.rotation.set(range(-0.4, 0.35), rand() * 6, range(-0.3, 0.3))
+      // Floor slabs broken into pieces a few metres across, heaped inside the footprint.
+      const pieces = Math.min(40, Math.round((span * span) / 14) + 2)
+      const xs = pts.map((q) => q[0])
+      const zs = pts.map((q) => q[1])
+      for (let i = 0, tries = 0; i < pieces && tries < pieces * 6; tries++) {
+        const px = range(Math.min(...xs), Math.max(...xs))
+        const pz = range(Math.min(...zs), Math.max(...zs))
+        if (!pointInFootprint(px, pz, pts)) continue
+        const slab = box(range(2.5, 6), range(0.22, 0.32), range(2, 5), slabMat)
+        slab.position.set(px, range(0.3, Math.min(4, 1 + floors * 0.4)), pz)
+        slab.rotation.set(range(-0.6, 0.6), rand() * 6, range(-0.5, 0.5))
         g.add(slab)
+        i++
       }
       rubble(local, cx, cz, { radius: span * 0.65, height: Math.min(6, 2 + floors * 0.5), count: Math.round(span * 10), tint: clad.color.getStyle() })
     } else {
@@ -559,8 +594,44 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
     }
   }
 
+  const columns = []
+  for (const e of edges) {
+    const recess = arcadeDepth(e)
+    if (!recess) continue
+    const count = Math.max(2, Math.round(e.len / 3.6) + 1)
+    for (let i = 0; i < count; i++) {
+      const t = -e.len / 2 + 0.35 + (i / (count - 1)) * (e.len - 0.7)
+      const x = e.mx + e.dx * t - e.nx * 0.35
+      const z = e.mz + e.dz * t - e.nz * 0.35
+      // Whole under an intact block; in a ruin some snapped, under a collapse only stumps.
+      const h = ruin === 'none' ? GROUND : ruin === 'shell' ? (rand() < 0.65 ? GROUND : range(0.6, GROUND * 0.7)) : range(0.4, 1.6)
+      const col = box(0.6, h, 0.6, clad)
+      col.position.set(x, h / 2, z)
+      col.rotation.y = e.yaw
+      g.add(col)
+      columns.push([x, z])
+    }
+    if (ruin === 'shell') {
+      // What is left of the floor over the arcade, in pieces with gaps between.
+      for (let t = -e.len / 2; t < e.len / 2 - 1; ) {
+        const len = Math.min(e.len / 2 - t, range(2, 5))
+        if (rand() < 0.65) {
+          const slab = box(len, 0.3, recess, cityMat(pick(CONCRETE)))
+          const mid = t + len / 2
+          slab.position.set(e.mx + e.dx * mid - e.nx * recess / 2, GROUND + 0.15, e.mz + e.dz * mid - e.nz * recess / 2)
+          slab.rotation.set(0, e.yaw, 0)
+          if (rand() < 0.3) slab.rotateX(range(-0.25, 0.25))
+          g.add(slab)
+        }
+        t += len + range(0.3, 1.5)
+      }
+    }
+  }
+
   for (const e of edges) {
     const street = streetSide(e)
+    // Shopfronts sit at the back of the arcade.
+    const back = arcadeDepth(e)
     if (windows && ruin === 'none' && e.len > 2.6) {
       const bays = windowBays(e.len)
       const ww = Math.min(1.8, (e.len / bays) * 0.7)
@@ -582,11 +653,11 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
     // Ground floor onto the street: a dark shopfront behind a part-rolled shutter.
     const sw = e.len - 1
     const shopFront = box(sw, GROUND - 0.9, 0.05, cityMat('#141210', { kind: 'paint', grime: 0.2 }))
-    shopFront.position.set(e.mx + e.nx * 0.03, (GROUND - 0.9) / 2, e.mz + e.nz * 0.03)
+    shopFront.position.set(e.mx + e.nx * (0.03 - back), (GROUND - 0.9) / 2, e.mz + e.nz * (0.03 - back))
     shopFront.rotation.y = e.yaw
     g.add(shopFront)
     const shutterH = (GROUND - 0.9) * pick([1, 1, 0.75, 0.45, 0.2])
-    add('shutter', facing(e, e.mx + e.nx * 0.08, GROUND - 0.9 - shutterH / 2, e.mz + e.nz * 0.08).scale(new THREE.Vector3(sw, shutterH, 1)), shutterColor)
+    add('shutter', facing(e, e.mx + e.nx * (0.08 - back), GROUND - 0.9 - shutterH / 2, e.mz + e.nz * (0.08 - back)).scale(new THREE.Vector3(sw, shutterH, 1)), shutterColor)
     if (ruin !== 'collapsed') {
       const fascia = new THREE.Mesh(new THREE.BoxGeometry(sw + 0.4, 0.9, 0.12), [plain, plain, plain, plain, signMaterial(), plain])
       fascia.position.set(e.mx + e.nx * 0.08, GROUND - 0.55, e.mz + e.nz * 0.08)
@@ -610,8 +681,64 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
       o.receiveShadow = true
     }
   })
-  for (const e of edges) addSegment(e.ax, e.az, e.bx, e.bz, 0.3)
+  // Walls block; arcades are walkable up to the shopfronts, between the columns.
+  for (const e of edges) {
+    const back = arcadeDepth(e)
+    addSegment(e.ax - e.nx * back, e.az - e.nz * back, e.bx - e.nx * back, e.bz - e.nz * back, 0.3)
+  }
+  for (const [x, z] of columns) addCircle(x, z, 0.4)
   return g
+}
+
+/**
+ * Footprint with chosen edges pulled inward by `depth` (the arcade recess). Returns null
+ * when an inset corner would fly off (sharp or degenerate corners), so callers fall back.
+ */
+function insetFootprint(pts, inset, depth) {
+  const n = pts.length
+  const cx = pts.reduce((a, p) => a + p[0], 0) / n
+  const cz = pts.reduce((a, p) => a + p[1], 0) / n
+  const lines = pts.map(([ax, az], i) => {
+    const [bx, bz] = pts[(i + 1) % n]
+    const len = Math.hypot(bx - ax, bz - az) || 1
+    let nx = (bz - az) / len
+    let nz = -(bx - ax) / len
+    if (nx * ((ax + bx) / 2 - cx) + nz * ((az + bz) / 2 - cz) < 0) {
+      nx = -nx
+      nz = -nz
+    }
+    const d = inset[i] ? depth : 0
+    return { px: ax - nx * d, pz: az - nz * d, dx: (bx - ax) / len, dz: (bz - az) / len }
+  })
+  const out = []
+  for (let i = 0; i < n; i++) {
+    const a = lines[(i - 1 + n) % n]
+    const b = lines[i]
+    const cross = a.dx * b.dz - a.dz * b.dx
+    let x
+    let z
+    if (Math.abs(cross) < 0.05) {
+      x = b.px
+      z = b.pz
+    } else {
+      const t = ((b.px - a.px) * b.dz - (b.pz - a.pz) * b.dx) / cross
+      x = a.px + a.dx * t
+      z = a.pz + a.dz * t
+    }
+    if (Math.hypot(x - pts[i][0], z - pts[i][1]) > depth * 2.5) return null
+    out.push([x, z])
+  }
+  return out
+}
+
+function pointInFootprint(x, z, pts) {
+  let inside = false
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, zi] = pts[i]
+    const [xj, zj] = pts[j]
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside
+  }
+  return inside
 }
 
 export function polygonArea(pts) {
