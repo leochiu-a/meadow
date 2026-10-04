@@ -34,17 +34,28 @@ export function createComposer(renderer, scene, camera) {
 
   // One pass for bloom, tilt-shift and the grade, then SMAA on the final LDR image.
   // Tone map before grading: grading HDR values can go negative, which turns black.
+  const saturation = new HueSaturationEffect({ saturation: 0.02, hue: 0.0 })
+  const tone = new BrightnessContrastEffect({ brightness: 0.02, contrast: 0.05 })
   composer.addPass(
     new EffectPass(
       camera,
       new BloomEffect({ intensity: 0.7, luminanceThreshold: 0.85, luminanceSmoothing: 0.25, mipmapBlur: true, radius: 0.7 }),
       new TiltShiftEffect({ offset: -0.12, focusArea: 0.42, feather: 0.3, kernelSize: KernelSize.LARGE }),
       new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }),
-      new HueSaturationEffect({ saturation: 0.02, hue: 0.0 }),
-      new BrightnessContrastEffect({ brightness: 0.02, contrast: 0.05 }),
+      saturation,
+      tone,
       new VignetteEffect({ offset: 0.3, darkness: 0.35 }),
     ),
   )
   composer.addPass(new EffectPass(camera, new SMAAEffect()))
-  return { composer, ao }
+  return {
+    composer,
+    ao,
+    // Overcast grade for rain (0–1): greyer and a little darker and flatter.
+    setRain(r) {
+      saturation.saturation = 0.02 - 0.32 * r
+      tone.brightness = 0.02 - 0.05 * r
+      tone.contrast = 0.05 - 0.05 * r
+    },
+  }
 }

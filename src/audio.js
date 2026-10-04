@@ -135,6 +135,8 @@ export function createAudio(ambience = 'meadow') {
     sfx.motorB.start()
 
     // Music bus kept soft and warm.
+    buildRain()
+
     sfx.music = ctx.createGain()
     sfx.music.gain.value = 0.11
     const musicTone = ctx.createBiquadFilter()
@@ -411,6 +413,50 @@ export function createAudio(ambience = 'meadow') {
   const VOICES = { cow: [moo, 14, 40], chicken: [cluck, 3, 10], pigeon: [coo, 6, 16], cat: [meow, 25, 60], dog: [bark, 30, 70] }
   const CUES = { meow, bark, flutter }
 
+  // Rain: a hiss of fine drops over a softer patter, both silent until it rains.
+  function buildRain() {
+    sfx.rainGain = ctx.createGain()
+    sfx.rainGain.gain.value = 0
+    sfx.rainGain.connect(master)
+    const hiss = loopNoise('white', 3)
+    const hp = ctx.createBiquadFilter()
+    hp.type = 'highpass'
+    hp.frequency.value = 2200
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.value = 9000
+    const hissGain = ctx.createGain()
+    hissGain.gain.value = 0.16
+    hiss.connect(hp).connect(lp).connect(hissGain).connect(sfx.rainGain)
+    const patter = loopNoise('brown', 4)
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = 700
+    bp.Q.value = 0.6
+    const patterGain = ctx.createGain()
+    patterGain.gain.value = 0.5
+    patter.connect(bp).connect(patterGain).connect(sfx.rainGain)
+  }
+
+  // Thunder: a crack, then a long low rumble rolling off.
+  function thunder(delay) {
+    const t = ctx.currentTime + delay
+    const src = ctx.createBufferSource()
+    src.buffer = noiseBuffer(ctx, 6, 'brown')
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.setValueAtTime(900, t)
+    lp.frequency.exponentialRampToValueAtTime(120, t + 1.2)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.9, t + 0.08)
+    g.gain.exponentialRampToValueAtTime(0.35, t + 1.5)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 5.5)
+    src.connect(lp).connect(g).connect(sfx.fx)
+    src.start(t)
+    src.stop(t + 6)
+  }
+
   function pluck(midi, when, vol = 0.5, dur = 1.6) {
     const osc = ctx.createOscillator()
     osc.type = 'triangle'
@@ -498,14 +544,19 @@ export function createAudio(ambience = 'meadow') {
     cue({ kind, x, z }, listener) {
       if (started && enabled) CUES[kind]?.(x, z, listener)
     },
-    update(dt, { listener, robotSpeed, voices = {} }) {
+    thunder(delay) {
+      if (started && enabled) thunder(delay)
+    },
+    update(dt, { listener, robotSpeed, voices = {}, rain = 0 }) {
       if (!started || !enabled) return
       const now = ctx.currentTime
+      sfx.rainGain.gain.setTargetAtTime(rain * 0.9, now, 0.5)
       sfx.motorA.frequency.setTargetAtTime(70 + robotSpeed * 55, now, 0.05)
       sfx.motorB.frequency.setTargetAtTime(141 + robotSpeed * 90, now, 0.05)
       sfx.motorGain.gain.setTargetAtTime(robotSpeed * 0.035, now, 0.08)
 
-      timers.bird -= dt
+      // Birds keep quiet in the rain.
+      timers.bird -= dt * (1 - rain)
       if (timers.bird <= 0) {
         timers.bird = city ? rand(3, 9) : rand(1.2, 5)
         chirp(listener)

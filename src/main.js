@@ -8,6 +8,7 @@ import { createAudio } from './audio.js'
 import { cutUniforms } from './cutaway.js'
 import { createMinimap } from './minimap.js'
 import { createOrbit } from './orbit.js'
+import { createWeather, createRain, applyWet, overcastEnvironment } from './weather.js'
 
 const renderer = new THREE.WebGLRenderer({ powerPreference: 'high-performance', antialias: false, stencil: false })
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
@@ -38,7 +39,8 @@ function fitCamera() {
 }
 fitCamera()
 
-scene.add(new THREE.HemisphereLight(...look.hemi))
+const hemi = new THREE.HemisphereLight(...look.hemi)
+scene.add(hemi)
 const sun = new THREE.DirectionalLight(...look.sun)
 sun.castShadow = true
 // The shadow box follows the robot and only needs to span what the camera sees.
@@ -54,13 +56,24 @@ const world = def.build(scene)
 const robot = createRobot(...def.start, def.tour, world.nav)
 scene.add(robot.object)
 
-const { composer, ao } = createComposer(renderer, scene, camera)
+const { composer, ao, setRain } = createComposer(renderer, scene, camera)
+
+// Weather: wet surfaces reflect an overcast sky, as strongly as they are wet.
+applyWet(scene)
+scene.environment = overcastEnvironment(renderer)
+scene.environmentIntensity = 0
+const rain = createRain()
+scene.add(rain.object)
+// The look each light lerps toward in a downpour.
+const dry = { background: scene.background.clone(), fog: scene.fog.color.clone(), near: scene.fog.near, far: scene.fog.far, hemi: hemi.intensity, sun: sun.intensity }
+const STORM_GREY = new THREE.Color('#8b9296')
 
 // Scenes with a plan to show get a corner map; clicking it sends the robot there.
 const minimap = world.minimap ? createMinimap(world.minimap, (x, z) => robot.goTo(new THREE.Vector3(x, 0, z))) : null
 
 // Browsers only allow audio after a user gesture, so the soundscape starts on first input.
 const audio = createAudio(def.ambience)
+const weather = createWeather((delay) => audio.thunder(delay))
 const soundButton = document.getElementById('sound')
 const startAudio = () => {
   audio.start()
@@ -134,10 +147,11 @@ run()
 
 function step(dt) {
   windUniforms.uTime.value = t
+  weather.update(dt)
   robot.update(t, dt, orbit.yaw)
   world.update(t, dt, robot.position)
   if (world.events) for (const e of world.events.splice(0)) audio.cue(e, robot.position)
-  audio.update(dt, { listener: robot.position, robotSpeed: robot.speed, voices: world.voices })
+  audio.update(dt, { listener: robot.position, robotSpeed: robot.speed, voices: world.voices, rain: weather.rain })
 
   // Camera trails the robot with a gentle drift, like a handheld miniature shot.
   focus.lerp(robot.position, 1 - Math.exp(-dt * 2.2))
@@ -150,6 +164,18 @@ function step(dt) {
   // Dissolve whatever stands between the camera and the robot.
   cutUniforms.uCutA.value.copy(camera.position)
   cutUniforms.uCutB.value.copy(robot.position).y += 0.6
+
+  // Rain greys the sky and closes the fog in; lightning flashes the whole scene.
+  const r = weather.rain
+  scene.background.copy(dry.background).lerp(STORM_GREY, r * 0.75)
+  scene.fog.color.copy(dry.fog).lerp(STORM_GREY, r * 0.75)
+  scene.fog.near = dry.near * (1 - 0.35 * r)
+  scene.fog.far = dry.far * (1 - 0.2 * r)
+  hemi.intensity = dry.hemi * (1 - 0.15 * r) + weather.flash * 2.5
+  sun.intensity = dry.sun * (1 - 0.75 * r)
+  scene.environmentIntensity = weather.wet * 0.6
+  rain.update(focus)
+  setRain(r)
 
   sun.position.copy(focus).addScaledVector(look.sunDirection, 40)
   sun.target.position.copy(focus)
