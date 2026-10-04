@@ -337,7 +337,10 @@ function groundShader(shader, classTex, wildTex, { minX, maxX, minZ, maxZ }, ang
         float sa = ${Math.sin(angle).toFixed(5)};
         vec2 p = vec2(ca * vGroundXZ.x + sa * vGroundXZ.y, -sa * vGroundXZ.x + ca * vGroundXZ.y);
         float soilN = gNoise(vGroundXZ * 1.7) * 0.6 + gNoise(vGroundXZ * 6.0) * 0.4;
-        vec3 soil = mix(vec3(0.11, 0.1, 0.07), vec3(0.17, 0.24, 0.08), smoothstep(0.35, 0.75, soilN));
+        // Earth under the turf is a grassy green like the meadow's floor, so gaps between tufts
+        // read as more turf; bare dark soil only where cracks and slab edges cut through.
+        vec3 soil = mix(vec3(0.2, 0.36, 0.09), vec3(0.33, 0.5, 0.13), smoothstep(0.3, 0.75, soilN));
+        vec3 bare = vec3(0.12, 0.1, 0.07);
         float wildHere = texture2D(uWild, uv).r;
         if (klass > 1.5 && klass < 3.5) {
           // Only scattered fragments of the old stone paving survive: each one chipped,
@@ -370,7 +373,7 @@ function groundShader(shader, classTex, wildTex, { minX, maxX, minZ, maxZ }, ang
           float crack = 1.0 - smoothstep(0.02 - aa, 0.05 + aa, v.x);
           float rim = 1.0 - smoothstep(0.05, 0.14, v.x);
           diffuseColor.rgb *= 1.0 - rim * 0.25;
-          diffuseColor.rgb = mix(diffuseColor.rgb, soil, max(crack, gone));
+          diffuseColor.rgb = mix(diffuseColor.rgb, mix(bare, soil, gone), max(crack, gone));
         }
       }`,
     )

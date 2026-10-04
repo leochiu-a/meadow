@@ -359,7 +359,7 @@ function build(scene) {
   for (const pts of cracks) for (const [x, z] of pts) crackCells.add(cellKey(x, z))
   const bounds = [minX + 1, maxX - 1, minZ + 1, maxZ - 1]
   const area = (maxX - minX) * (maxZ - minZ)
-  scene.add(createGrass({ bounds, target: Math.round(area * 13), place: cityGrass(blocked, groundAt, overgrownAt, crackCells) }))
+  scene.add(createGrass({ bounds, target: Math.round(area * 26), place: cityGrass(blocked, groundAt, overgrownAt, crackCells) }))
   scene.add(createFlowers({ bounds, target: Math.round(area * 1.2), place: cityFlowers(blocked, overgrownAt) }))
   // Trees seeded in the streets themselves, thickest where the street has gone wild, but
   // never crowding the station exits.
@@ -400,12 +400,12 @@ export default {
   title: '廢土西門町',
   look: {
     background: '#c8bfa6',
-    fog: ['#bfb59b', 40, 85],
+    fog: ['#bfb59b', 32, 66],
     hemi: ['#d6dcd8', '#5a5040', 0.95],
     sun: ['#ffd8a6', 4.2],
     sunDirection: new THREE.Vector3(-12, 14, -8).normalize(),
-    // A touch higher than the meadow so the robot reads over the ruined walls.
-    camera: { offset: [0, 13, 13.5], hfov: 34 },
+    // The meadow's framing, so the turf reads at the same scale.
+    camera: { offset: [0, 11, 12.5], hfov: 33 },
   },
   // On the square by MRT Ximen Exit 6.
   start: [0, 4],
