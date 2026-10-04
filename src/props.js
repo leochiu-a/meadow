@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
-import { heightAt, rand, range, pick, PLAZA, noise } from './terrain.js'
+import { heightAt, rand, range, pick, noise } from './terrain.js'
 import { addCircle, addSegment } from './collision.js'
 import { brickMaterial } from './bricks.js'
 import { createBush, createIvy } from './vegetation.js'
@@ -41,8 +41,8 @@ const place = (obj, x, z, rotY = 0, lift = 0) => {
 
 
 // Weathered stone: grime pooling toward each slab's edges, moss creeping in from the
-// joints and in patches that thicken toward the meadow side of the plaza.
-function flagstoneMaterial() {
+// joints and in patches that thicken toward the paving's open sides (+z, -x, +x).
+function flagstoneMaterial(area) {
   const m = new THREE.MeshStandardMaterial({ roughness: 0.95 })
   m.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
@@ -74,34 +74,36 @@ function flagstoneMaterial() {
         diffuseColor.rgb *= 0.88 + 0.2 * grain;
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.2, 0.17, 0.12), stain * 0.45 + smoothstep(0.75, 1.0, edge) * 0.35);
         // Moss: from the joints inward, heavier near the meadow (+z) and in noise patches.
-        float meadow = smoothstep(${(PLAZA.maxZ - 6).toFixed(2)}, ${PLAZA.maxZ.toFixed(2)}, w.y) + smoothstep(${(PLAZA.minX + 4).toFixed(2)}, ${PLAZA.minX.toFixed(2)}, w.x) + smoothstep(${(PLAZA.maxX - 4).toFixed(2)}, ${PLAZA.maxX.toFixed(2)}, w.x);
+        float open = smoothstep(${(area.maxZ - 6).toFixed(2)}, ${area.maxZ.toFixed(2)}, w.y) + smoothstep(${(area.minX + 4).toFixed(2)}, ${area.minX.toFixed(2)}, w.x) + smoothstep(${(area.maxX - 4).toFixed(2)}, ${area.maxX.toFixed(2)}, w.x);
         float patchN = sNoise(w * 0.45 + 17.0);
-        float moss = smoothstep(0.55, 0.8, edge * 0.55 + grain * 0.35 + patchN * 0.45 + meadow * 0.35 - 0.25);
+        float moss = smoothstep(0.55, 0.8, edge * 0.55 + grain * 0.35 + patchN * 0.45 + open * 0.35 - 0.25);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.24, 0.36, 0.1) * (0.75 + 0.5 * grain), moss * 0.9);`,
       )
   }
+  m.customProgramCacheKey = () => `flagstone-${area.minX},${area.maxX},${area.maxZ}`
   return m
 }
 
-// Worn flagstone paving: courses of large flat slabs of random width, tight joints.
-export function cobblestones() {
+// Worn flagstone paving over area { minX, maxX, minZ, maxZ }: courses of large flat slabs
+// of random width with tight joints, ragged where vegetation eats into the open sides.
+export function cobblestones(area) {
   const geo = new RoundedBoxGeometry(1, 1, 1, 2, 0.06)
   const depth = 0.95
-  const rows = Math.floor((PLAZA.maxZ - PLAZA.minZ) / depth)
-  const mesh = new THREE.InstancedMesh(geo, flagstoneMaterial(), rows * 40)
+  const rows = Math.floor((area.maxZ - area.minZ) / depth)
+  const mesh = new THREE.InstancedMesh(geo, flagstoneMaterial(area), rows * 40)
   const d = new THREE.Object3D()
   const c = new THREE.Color()
   let n = 0
   for (let j = 0; j < rows; j++) {
-    const z = PLAZA.minZ + (j + 0.5) * depth
-    let x = PLAZA.minX - range(0, 0.8)
-    while (x < PLAZA.maxX) {
+    const z = area.minZ + (j + 0.5) * depth
+    let x = area.minX - range(0, 0.8)
+    while (x < area.maxX) {
       const w = range(0.75, 1.7)
       const cx = x + w / 2
       x += w
-      if (cx > PLAZA.maxX - 0.3) continue
+      if (cx > area.maxX - 0.3) continue
       // Ragged edge where the meadow eats into the stones, plus the odd missing slab.
-      const edge = Math.min(cx - PLAZA.minX, PLAZA.maxX - cx, PLAZA.maxZ - z)
+      const edge = Math.min(cx - area.minX, area.maxX - cx, area.maxZ - z)
       if (edge < 2.2 && rand() > edge / 2.2 + noise.noise(cx * 0.6, z * 0.6) * 0.3) continue
       if (rand() < 0.04) continue
       d.position.set(cx, 0.0, z + range(-0.03, 0.03))
@@ -119,8 +121,8 @@ export function cobblestones() {
   return mesh
 }
 
-// Fallen leaves, twigs and pebbles strewn over the plaza and the meadow's bare patches.
-export function litter(blocked) {
+// Fallen leaves and pebbles drifted into clusters over area { minX, maxX, minZ, maxZ }.
+export function litter(blocked, area) {
   const leafGeo = new THREE.CircleGeometry(0.045, 5).scale(1, 1.6, 1).rotateX(-Math.PI / 2)
   const pebbleGeo = new THREE.DodecahedronGeometry(0.06, 0)
   const leaves = new THREE.InstancedMesh(leafGeo, new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.9 }), 2500)
@@ -130,8 +132,8 @@ export function litter(blocked) {
   let nl = 0
   let np = 0
   for (let tries = 0; tries < 60000 && (nl < 2500 || np < 1500); tries++) {
-    const x = range(PLAZA.minX - 4, PLAZA.maxX + 4)
-    const z = range(PLAZA.minZ, PLAZA.maxZ + 6)
+    const x = range(area.minX, area.maxX)
+    const z = range(area.minZ, area.maxZ)
     if (blocked(x, z)) continue
     // Debris drifts into clusters rather than spreading evenly.
     const drift = noise.noise(x * 0.35 + 50, z * 0.35) * 0.5 + 0.5
@@ -384,7 +386,7 @@ export function cottage(x, z, { w = 6, d = 4.5, h = 4.2, rotY = 0, door = -1, ra
 }
 
 // Metre-based UVs on a box so the brick shader keeps a constant brick size.
-function setMetreUVs(geo, w, h, d) {
+export function setMetreUVs(geo, w, h, d) {
   const p = geo.attributes.position
   const n = geo.attributes.normal
   const uv = geo.attributes.uv

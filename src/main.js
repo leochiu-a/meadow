@@ -1,9 +1,11 @@
 import * as THREE from 'three'
-import { buildWorld, sunDirection } from './world.js'
+import meadow from './meadow.js'
+import ximending from './ximending.js'
 import { createRobot } from './robot.js'
 import { createComposer } from './post.js'
 import { windUniforms } from './wind.js'
 import { createAudio } from './audio.js'
+import { cutUniforms } from './cutaway.js'
 
 const renderer = new THREE.WebGLRenderer({ powerPreference: 'high-performance', antialias: false, stencil: false })
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
@@ -12,23 +14,31 @@ renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 document.body.appendChild(renderer.domElement)
 
-const scene = new THREE.Scene()
-scene.background = new THREE.Color('#8fbf4a')
-scene.fog = new THREE.Fog('#a9cc62', 55, 130)
+// Scenes are picked by ?scene=; each brings its own look, start point and patrol route.
+const SCENES = { meadow, ximending }
+const requested = new URLSearchParams(location.search).get('scene')
+const sceneName = requested in SCENES ? requested : 'meadow'
+const def = SCENES[sceneName]
+const { look } = def
 
-const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 1, 200)
-const CAMERA_OFFSET = new THREE.Vector3(0, 11, 12.5)
-// Keep a fixed horizontal field of view so portrait windows see as much meadow as landscape ones.
+const scene = new THREE.Scene()
+scene.background = new THREE.Color(look.background)
+scene.fog = new THREE.Fog(...look.fog)
+
+// The far plane stops at the fog's end: nothing past it is visible anyway.
+const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 1, look.fog[2] + 5)
+const CAMERA_OFFSET = new THREE.Vector3(...look.camera.offset)
+// Keep a fixed horizontal field of view so portrait windows see as much scene as landscape ones.
 function fitCamera() {
   camera.aspect = innerWidth / innerHeight
-  const hfov = THREE.MathUtils.degToRad(33)
+  const hfov = THREE.MathUtils.degToRad(look.camera.hfov)
   camera.fov = Math.max(30, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hfov / 2) / camera.aspect)))
   camera.updateProjectionMatrix()
 }
 fitCamera()
 
-scene.add(new THREE.HemisphereLight('#a8dcff', '#5f8f30', 1.05))
-const sun = new THREE.DirectionalLight('#ffd49a', 4.6)
+scene.add(new THREE.HemisphereLight(...look.hemi))
+const sun = new THREE.DirectionalLight(...look.sun)
 sun.castShadow = true
 // The shadow box follows the robot and only needs to span what the camera sees.
 sun.shadow.mapSize.set(2048, 2048)
@@ -39,8 +49,8 @@ sun.shadow.radius = 3
 sun.shadow.intensity = 0.72
 scene.add(sun, sun.target)
 
-const world = buildWorld(scene)
-const robot = createRobot(0.6, -7.5)
+const world = def.build(scene)
+const robot = createRobot(...def.start, def.tour)
 scene.add(robot.object)
 
 const { composer, ao } = createComposer(renderer, scene, camera)
@@ -55,6 +65,17 @@ const startAudio = () => {
 }
 addEventListener('pointerdown', startAudio, { once: true })
 addEventListener('keydown', startAudio, { once: true })
+// Scenes built from map data carry its attribution.
+if (def.attribution) document.getElementById('credit').innerHTML = `地圖資料 <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">${def.attribution}</a>`
+
+// Switching scenes reloads the page: each scene owns the terrain and colliders it builds.
+const sceneButton = document.getElementById('scene')
+const other = sceneName === 'meadow' ? 'ximending' : 'meadow'
+sceneButton.textContent = `前往${SCENES[other].title}`
+sceneButton.addEventListener('pointerdown', (e) => {
+  e.stopPropagation()
+  location.search = `?scene=${other}`
+})
 soundButton.addEventListener('pointerdown', (e) => {
   e.stopPropagation()
   soundButton.textContent = audio.toggle() ? '🔊' : '🔇'
@@ -99,7 +120,11 @@ renderer.setAnimationLoop(() => {
   camera.position.copy(focus).add(CAMERA_OFFSET).add(drift)
   camera.lookAt(focus.x, focus.y + 0.3, focus.z)
 
-  sun.position.copy(focus).addScaledVector(sunDirection, 40)
+  // Dissolve whatever stands between the camera and the robot.
+  cutUniforms.uCutA.value.copy(camera.position)
+  cutUniforms.uCutB.value.copy(robot.position).y += 0.6
+
+  sun.position.copy(focus).addScaledVector(look.sunDirection, 40)
   sun.target.position.copy(focus)
 
   composer.render(dt)

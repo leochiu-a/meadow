@@ -8,13 +8,6 @@ import { weathered } from './weathering.js'
 const SPEED = 3.2
 const IDLE_BEFORE_TOUR = 4
 
-// Route that wanders past the landmarks, like the camera move in the reference clip.
-const TOUR = [
-  [0.6, -9.5], [0.6, -14.5], [-1, -22.5], [5, -23.5], [5.2, -19.5], [1.2, -19], [0.6, -14], [0.6, -9.5],
-  [-2, -4], [-0.5, 1.5], [-2, 7.2], [4.5, 10], [9.5, 9.5], [10.6, 4.6], [10.5, -0.5],
-  [6, 0.6], [2.4, 0.3], [0.2, -0.4], [0.6, -3.6], [2.4, -8.6],
-]
-
 // Six-wheeled sidewalk delivery robot: white cargo tub with a lid over a blue-grey chassis,
 // a black face panel at the front (+X) and a tall flag whip at the back.
 function buildMesh() {
@@ -90,7 +83,8 @@ function buildMesh() {
   return { g, wheels, eyes, flag }
 }
 
-export function createRobot(x, z) {
+// Robot starting at (x, z); when idle it patrols `tour`, a loop of [x, z] waypoints.
+export function createRobot(x, z, tour) {
   const { g, wheels, eyes, flag } = buildMesh()
   const pos = new THREE.Vector3(x, 0, z)
   const keys = new Set()
@@ -108,7 +102,7 @@ export function createRobot(x, z) {
   function nearestTourIdx() {
     let best = 0
     let bestD = Infinity
-    TOUR.forEach(([tx, tz], i) => {
+    tour.forEach(([tx, tz], i) => {
       const d = (tx - pos.x) ** 2 + (tz - pos.z) ** 2
       if (d < bestD) {
         bestD = d
@@ -151,11 +145,11 @@ export function createRobot(x, z) {
         idle += dt
         if (idle > IDLE_BEFORE_TOUR) {
           if (!wasTouring) tourIdx = nearestTourIdx()
-          const [tx, tz] = TOUR[tourIdx]
+          const [tx, tz] = tour[tourIdx]
           const to = new THREE.Vector2(tx - pos.x, tz - pos.z)
           // Skip a waypoint if something keeps us from making progress toward it.
           if (to.length() < 0.6 || stuckTime > 1.5) {
-            tourIdx = (tourIdx + 1) % TOUR.length
+            tourIdx = (tourIdx + 1) % tour.length
             stuckTime = 0
           }
           dir = to.normalize()

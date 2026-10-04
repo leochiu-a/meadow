@@ -14,6 +14,16 @@
         pointer-events: none; backdrop-filter: blur(4px); transition: opacity 0.6s;
       }
       #hint.dim { opacity: 0.55; }
+      #scene {
+        position: fixed; right: 72px; bottom: 16px; height: 44px; padding: 0 16px;
+        font: 14px system-ui, sans-serif; border: 0; border-radius: 22px; cursor: pointer;
+        background: rgba(30, 40, 20, 0.45); color: #fff; backdrop-filter: blur(4px);
+      }
+      #credit {
+        position: fixed; right: 16px; top: 12px; font: 11px system-ui, sans-serif;
+        color: rgba(255, 255, 255, 0.75); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      }
+      #credit a { color: inherit; }
       #sound {
         position: fixed; right: 16px; bottom: 16px; width: 44px; height: 44px;
         font-size: 20px; border: 0; border-radius: 50%; cursor: pointer;
@@ -23,6 +33,8 @@
   </head>
   <body>
     <div id="hint">點一下開啟聲音・WASD / 方向鍵移動・點地面前往・閒置 4 秒自動巡遊</div>
+    <div id="credit"></div>
+    <button id="scene"></button>
     <button id="sound" aria-label="切換聲音">🔈</button>
     <script type="module" src="/src/main.js"></script>
   </body>

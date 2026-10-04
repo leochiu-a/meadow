@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { applyWind } from './wind.js'
-import { heightAt, surfaceAt, grassColor, noise, rand, range, pick, inPlaza, PLAZA } from './terrain.js'
+import { heightAt, noise, rand, range, pick } from './terrain.js'
 import { addCircle } from './collision.js'
 
 const dummy = new THREE.Object3D()
@@ -53,7 +53,7 @@ function tuftGeometry() {
 
 // Split instances into ground tiles, each its own InstancedMesh with a bounding sphere, so
 // the renderer frustum-culls whole patches the camera can't see.
-function tiledInstances(geometry, material, entries, tile = 10) {
+function tiledInstances(geometry, material, entries, tile = 16) {
   const buckets = new Map()
   for (const e of entries) {
     const key = `${Math.floor(e.x / tile)},${Math.floor(e.z / tile)}`
@@ -76,35 +76,24 @@ function tiledInstances(geometry, material, entries, tile = 10) {
   return group
 }
 
-export function createGrass(blockers) {
-  const area = 92
-  const target = 200000
+/**
+ * Grass tufts scattered over bounds [minX, maxX, minZ, maxZ]. The scene decides where grass
+ * grows: place(x, z, color) returns the tuft height (0 to skip) and fills in its colour.
+ */
+export function createGrass({ bounds, target, place }) {
+  const [minX, maxX, minZ, maxZ] = bounds
   const entries = []
-  let n = 0
-  for (let tries = 0; tries < target * 3 && n < target; tries++) {
-    const x = range(-area / 2, area / 2)
-    const z = range(-area / 2 + 6, area / 2 - 4)
-    const s = surfaceAt(x, z)
-    if (rand() < s.path * 0.97) continue
-    if (s.plaza) {
-      const margin = Math.min(x - PLAZA.minX, PLAZA.maxX - x, PLAZA.maxZ - z)
-      const overgrown = Math.max(1 - margin / 3.5, noise.noise(x * 0.4 + 9, z * 0.4) - 0.25)
-      if (rand() > overgrown * 0.55 + 0.01) continue
-    }
-    if (blockers(x, z)) continue
-    const clump = noise.noise(x * 0.5, z * 0.5) * 0.5 + 0.5
-    if (rand() > 0.6 + clump * 0.4) continue
-    const tall = s.dry > 0.5 ? range(0.32, 0.6) : range(0.24, 0.46) * (0.75 + clump * 0.6)
+  for (let tries = 0; tries < target * 3 && entries.length < target; tries++) {
+    const x = range(minX, maxX)
+    const z = range(minZ, maxZ)
+    const tall = place(x, z, color)
+    if (!tall) continue
     dummy.position.set(x, heightAt(x, z) - 0.02, z)
     dummy.rotation.set(range(-0.12, 0.12), rand() * Math.PI * 2, range(-0.12, 0.12))
     const wide = range(0.85, 1.4)
-    dummy.scale.set(wide, tall * (1 - s.path * 0.6), wide)
+    dummy.scale.set(wide, tall, wide)
     dummy.updateMatrix()
-    // Clump-scale light and dark patches give the lawn its soft, lumpy read.
-    const patch = noise.noise(x * 0.9 + 3, z * 0.9) * 0.5 + 0.5
-    grassColor(x, z, color).offsetHSL(range(-0.02, 0.02) + (patch - 0.5) * 0.03, range(-0.04, 0.04), (patch - 0.5) * 0.14 + range(-0.04, 0.04))
     entries.push({ x, z, matrix: dummy.matrix.clone(), color: color.clone() })
-    n++
   }
   return tiledInstances(
     tuftGeometry(),
@@ -146,39 +135,28 @@ export function createReeds(spots) {
   return mesh
 }
 
-export function createFlowers(blockers) {
+/**
+ * Small flowers over bounds [minX, maxX, minZ, maxZ]. place(x, z) returns null to skip, or
+ * { color, big } where big marks a bloom in a colourful drift rather than a pale speck.
+ */
+export function createFlowers({ bounds, target, place }) {
+  const [minX, maxX, minZ, maxZ] = bounds
   const head = new THREE.IcosahedronGeometry(0.04, 0).scale(1, 0.6, 1).translate(0, 0.34, 0)
   const stem = new THREE.CylinderGeometry(0.005, 0.005, 0.34, 3).translate(0, 0.17, 0)
   const geo = mergeGeometries([head, stem.toNonIndexed()])
-  const target = 70000
   const entries = []
-  const specks = ['#ffffff', '#f2eefc', '#e3dcf6', '#d9d2f2', '#fffbe8']
-  const drifts = [
-    ['#ff5a5a', '#ff7a6a', '#f04a4a'],
-    ['#6f8cff', '#8aa4ff', '#5f78f0'],
-    ['#c88cff', '#b07af0', '#d9a8ff'],
-    ['#ff8fb8', '#ffb3cf'],
-  ]
-  let n = 0
-  for (let tries = 0; tries < target * 8 && n < target; tries++) {
-    const x = range(-44, 44)
-    const z = range(-38, 40)
-    const s = surfaceAt(x, z)
-    if (s.path > 0.2 || s.plaza || s.dry > 0.6 || blockers(x, z)) continue
-    // Pale specks scatter in loose swathes; saturated colours only in tight drifts.
-    const swathe = noise.noise(x * 0.12 - 20, z * 0.12) * 0.5 + 0.5
-    const field = noise.noise(x * 0.18 + 30, z * 0.18) * 0.5 + 0.5
-    const drift = field > 0.76
-    if (!drift && rand() > swathe ** 1.5 * 0.8) continue
-    const paletteIdx = Math.floor((noise.noise(x * 0.07, z * 0.07 + 9) * 0.5 + 0.5) * 3.99) % 4
+  for (let tries = 0; tries < target * 8 && entries.length < target; tries++) {
+    const x = range(minX, maxX)
+    const z = range(minZ, maxZ)
+    const bloom = place(x, z)
+    if (!bloom) continue
     dummy.position.set(x, heightAt(x, z), z)
     dummy.rotation.set(0, rand() * 6, 0)
-    const sc = drift ? range(0.9, 1.4) : range(0.6, 1)
+    const sc = bloom.big ? range(0.9, 1.4) : range(0.6, 1)
     dummy.scale.set(sc, range(1.0, 1.5), sc)
     dummy.updateMatrix()
-    color.set(drift ? pick(drifts[paletteIdx]) : pick(specks))
+    color.set(bloom.color)
     entries.push({ x, z, matrix: dummy.matrix.clone(), color: color.clone() })
-    n++
   }
   return tiledInstances(geo, applyWind(new THREE.MeshStandardMaterial({ roughness: 0.7 }), { strength: 0.18, heightRef: 0.35 }), entries)
 }
@@ -469,5 +447,3 @@ export function createBush(x, z, size = 1, collide = true) {
   if (collide) addCircle(x, z, 0.55 * size)
   return g
 }
-
-export const isPlazaOrPath = (x, z) => inPlaza(x, z) || surfaceAt(x, z).path > 0.5

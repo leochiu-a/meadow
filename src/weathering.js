@@ -2,7 +2,8 @@
 // rising from the ground, dust settling on upward faces, sun fading, and per-kind detail
 // (wood grain, rust). Keeps props from reading as fresh plastic.
 //
-// kind: 'paint' (default), 'wood', 'metal'. grime and fade scale the effect.
+// kind: 'paint' (default), 'wood', 'metal', 'concrete' (rain streaks running down walls).
+// grime and fade scale the effect.
 export function weathered(material, { kind = 'paint', grime = 1, fade = 0.15 } = {}) {
   if (kind !== 'metal') material.roughness = Math.max(material.roughness, 0.88)
   material.onBeforeCompile = (shader) => {
@@ -52,6 +53,14 @@ export function weathered(material, { kind = 'paint', grime = 1, fade = 0.15 } =
           c *= 0.62 + 0.6 * grain;
           wBump += grain * 0.01;
           c = mix(c, vec3(lum) * vec3(1.02, 0.97, 0.88), 0.28);`
+              : ''
+          }
+          ${
+            kind === 'concrete'
+              ? `// Rain streaks: dark runs down vertical faces, heavier toward the top edges.
+          float run = wNoise(vec3((vWPos.x + vWPos.z) * 5.0, vWPos.y * 0.35, (vWPos.x - vWPos.z) * 5.0));
+          float run2 = wNoise(vec3((vWPos.x - vWPos.z) * 1.7, vWPos.y * 0.15 + 3.0, 0.0));
+          c *= 1.0 - smoothstep(0.45, 0.8, run * run2 * 1.6) * 0.45 * (1.0 - abs(vWNrm.y));`
               : ''
           }
           float g = ${grime.toFixed(3)};

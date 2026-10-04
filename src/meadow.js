@@ -1,43 +1,64 @@
 import * as THREE from 'three'
-import { createGround, heightAt, rand, range } from './terrain.js'
-import { colliders } from './collision.js'
+import { heightAt, setTerrain, noise, rand, range, pick } from './terrain.js'
+import { meadowTerrain, createGround, surfaceAt, grassColor, PLAZA } from './meadow-terrain.js'
+import { buildBlockers } from './collision.js'
 import { brickWall, brickPillar, brickArch, brickRubble, fallenChunk, flushBricks } from './bricks.js'
 import * as props from './props.js'
 import { createGrass, createFlowers, createReeds, createLupines, createIvy, createTree, createSapling, createBush } from './vegetation.js'
 import { createCow, createChicken, createFox, createVillager } from './animals.js'
 import { graffitiOnWall } from './graffiti.js'
 
-// Coarse occupancy grid of collider footprints so foliage doesn't sprout through props.
-function buildBlockers() {
-  const cell = 0.4
-  const filled = new Set()
-  const key = (i, j) => i * 10000 + j
-  for (const c of colliders) {
-    const minX = Math.min(c.ax, c.bx) - c.r
-    const maxX = Math.max(c.ax, c.bx) + c.r
-    const minZ = Math.min(c.az, c.bz) - c.r
-    const maxZ = Math.max(c.az, c.bz) + c.r
-    for (let x = minX; x <= maxX; x += cell * 0.5) {
-      for (let z = minZ; z <= maxZ; z += cell * 0.5) {
-        const dx = c.bx - c.ax
-        const dz = c.bz - c.az
-        const len2 = dx * dx + dz * dz
-        const t = len2 ? Math.max(0, Math.min(1, ((x - c.ax) * dx + (z - c.az) * dz) / len2)) : 0
-        if (Math.hypot(x - (c.ax + dx * t), z - (c.az + dz * t)) < c.r * 0.85) {
-          filled.add(key(Math.round(x / cell), Math.round(z / cell)))
-        }
-      }
+// Where grass grows and how tall: thin on the path, creeping into the plaza from its
+// edges, lumpy clumps everywhere else, taller on the dry field.
+function meadowGrass(blocked) {
+  return (x, z, color) => {
+    const s = surfaceAt(x, z)
+    if (rand() < s.path * 0.97) return 0
+    if (s.plaza) {
+      const margin = Math.min(x - PLAZA.minX, PLAZA.maxX - x, PLAZA.maxZ - z)
+      const overgrown = Math.max(1 - margin / 3.5, noise.noise(x * 0.4 + 9, z * 0.4) - 0.25)
+      if (rand() > overgrown * 0.55 + 0.01) return 0
     }
+    if (blocked(x, z)) return 0
+    const clump = noise.noise(x * 0.5, z * 0.5) * 0.5 + 0.5
+    if (rand() > 0.6 + clump * 0.4) return 0
+    const tall = s.dry > 0.5 ? range(0.32, 0.6) : range(0.24, 0.46) * (0.75 + clump * 0.6)
+    // Clump-scale light and dark patches give the lawn its soft, lumpy read.
+    const patch = noise.noise(x * 0.9 + 3, z * 0.9) * 0.5 + 0.5
+    grassColor(x, z, color).offsetHSL(range(-0.02, 0.02) + (patch - 0.5) * 0.03, range(-0.04, 0.04), (patch - 0.5) * 0.14 + range(-0.04, 0.04))
+    return tall * (1 - s.path * 0.6)
   }
-  return (x, z) => filled.has(key(Math.round(x / cell), Math.round(z / cell)))
 }
 
-export function buildWorld(scene) {
+const SPECKS = ['#ffffff', '#f2eefc', '#e3dcf6', '#d9d2f2', '#fffbe8']
+const DRIFTS = [
+  ['#ff5a5a', '#ff7a6a', '#f04a4a'],
+  ['#6f8cff', '#8aa4ff', '#5f78f0'],
+  ['#c88cff', '#b07af0', '#d9a8ff'],
+  ['#ff8fb8', '#ffb3cf'],
+]
+
+// Pale specks scatter in loose swathes; saturated colours only in tight drifts.
+function meadowFlowers(blocked) {
+  return (x, z) => {
+    const s = surfaceAt(x, z)
+    if (s.path > 0.2 || s.plaza || s.dry > 0.6 || blocked(x, z)) return null
+    const swathe = noise.noise(x * 0.12 - 20, z * 0.12) * 0.5 + 0.5
+    const field = noise.noise(x * 0.18 + 30, z * 0.18) * 0.5 + 0.5
+    const big = field > 0.76
+    if (!big && rand() > swathe ** 1.5 * 0.8) return null
+    const paletteIdx = Math.floor((noise.noise(x * 0.07, z * 0.07 + 9) * 0.5 + 0.5) * 3.99) % 4
+    return { color: big ? pick(DRIFTS[paletteIdx]) : pick(SPECKS), big }
+  }
+}
+
+function build(scene) {
+  setTerrain(meadowTerrain)
   const updaters = []
   scene.add(createGround())
 
   // --- Village plaza at the back ---
-  scene.add(props.cobblestones())
+  scene.add(props.cobblestones(PLAZA))
   const houses = [
     [-9, -29.5, { w: 7, railing: 1, tags: [0], piece: true }],
     [-1, -30, { w: 6.5, door: 0, pergola: true, tags: [1] }],
@@ -151,9 +172,9 @@ export function buildWorld(scene) {
 
   // --- Foliage last, so it can avoid every prop's footprint ---
   const blocked = buildBlockers()
-  scene.add(createGrass(blocked))
-  scene.add(props.litter(blocked))
-  scene.add(createFlowers(blocked))
+  scene.add(createGrass({ bounds: [-46, 46, -40, 42], target: 200000, place: meadowGrass(blocked) }))
+  scene.add(props.litter(blocked, { minX: PLAZA.minX - 4, maxX: PLAZA.maxX + 4, minZ: PLAZA.minZ, maxZ: PLAZA.maxZ + 6 }))
+  scene.add(createFlowers({ bounds: [-44, 44, -38, 40], target: 70000, place: meadowFlowers(blocked) }))
   const reedSpots = []
   for (let i = 0; i < 26; i++) {
     const t = rand()
@@ -186,4 +207,23 @@ export function buildWorld(scene) {
   }
 }
 
-export const sunDirection = new THREE.Vector3(-12, 13, -9).normalize()
+// Sunny overgrown village: warm low sun, green-tinted shade, a grassy horizon.
+export default {
+  title: '草原',
+  look: {
+    background: '#8fbf4a',
+    fog: ['#a9cc62', 55, 130],
+    hemi: ['#a8dcff', '#5f8f30', 1.05],
+    sun: ['#ffd49a', 4.6],
+    sunDirection: new THREE.Vector3(-12, 13, -9).normalize(),
+    camera: { offset: [0, 11, 12.5], hfov: 33 },
+  },
+  start: [0.6, -7.5],
+  // Route that wanders past the landmarks, like the camera move in the reference clip.
+  tour: [
+    [0.6, -9.5], [0.6, -14.5], [-1, -22.5], [5, -23.5], [5.2, -19.5], [1.2, -19], [0.6, -14], [0.6, -9.5],
+    [-2, -4], [-0.5, 1.5], [-2, 7.2], [4.5, 10], [9.5, 9.5], [10.6, 4.6], [10.5, -0.5],
+    [6, 0.6], [2.4, 0.3], [0.2, -0.4], [0.6, -3.6], [2.4, -8.6],
+  ],
+  build,
+}

@@ -31,3 +31,28 @@ export function resolve(pos, radius) {
     }
   }
 }
+
+// Coarse occupancy grid of collider footprints so foliage doesn't sprout through props.
+export function buildBlockers() {
+  const cell = 0.4
+  const filled = new Set()
+  const key = (i, j) => i * 10000 + j
+  for (const c of colliders) {
+    const minX = Math.min(c.ax, c.bx) - c.r
+    const maxX = Math.max(c.ax, c.bx) + c.r
+    const minZ = Math.min(c.az, c.bz) - c.r
+    const maxZ = Math.max(c.az, c.bz) + c.r
+    for (let x = minX; x <= maxX; x += cell * 0.5) {
+      for (let z = minZ; z <= maxZ; z += cell * 0.5) {
+        const dx = c.bx - c.ax
+        const dz = c.bz - c.az
+        const len2 = dx * dx + dz * dz
+        const t = len2 ? Math.max(0, Math.min(1, ((x - c.ax) * dx + (z - c.az) * dz) / len2)) : 0
+        if (Math.hypot(x - (c.ax + dx * t), z - (c.az + dz * t)) < c.r * 0.85) {
+          filled.add(key(Math.round(x / cell), Math.round(z / cell)))
+        }
+      }
+    }
+  }
+  return (x, z) => filled.has(key(Math.round(x / cell), Math.round(z / cell)))
+}
