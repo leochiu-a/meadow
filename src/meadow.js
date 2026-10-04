@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { heightAt, setTerrain, noise, rand, range, pick } from './terrain.js'
 import { meadowTerrain, createGround, surfaceAt, grassColor, PLAZA } from './meadow-terrain.js'
 import { buildBlockers } from './collision.js'
+import { createNavGrid } from './walkmap.js'
 import { brickWall, brickPillar, brickArch, brickRubble, fallenChunk, flushBricks } from './bricks.js'
 import * as props from './props.js'
 import { createGrass, createFlowers, createReeds, createLupines, createIvy, createTree, createSapling, createBush } from './vegetation.js'
@@ -199,6 +200,8 @@ function build(scene) {
   )
 
   return {
+    // Routes for the robot, planned around everything placed above.
+    nav: createNavGrid({ minX: -46, maxX: 46, minZ: -40, maxZ: 42 }),
     update(t, dt) {
       for (const u of updaters) u(t, dt)
     },

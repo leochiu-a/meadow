@@ -51,7 +51,7 @@ sun.shadow.intensity = 0.72
 scene.add(sun, sun.target)
 
 const world = def.build(scene)
-const robot = createRobot(...def.start, def.tour)
+const robot = createRobot(...def.start, def.tour, world.nav)
 scene.add(robot.object)
 
 const { composer, ao } = createComposer(renderer, scene, camera)

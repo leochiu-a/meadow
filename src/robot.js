@@ -83,21 +83,24 @@ function buildMesh() {
   return { g, wheels, eyes, flag }
 }
 
-// Robot starting at (x, z); when idle it patrols `tour`, a loop of [x, z] waypoints.
-export function createRobot(x, z, tour) {
+// Robot starting at (x, z); when idle it patrols `tour`, a loop of [x, z] waypoints. Routes
+// to tour waypoints and to clicked spots are planned on `nav` (see walkmap.js), so it goes
+// round walls, rubble and trees instead of driving into them.
+export function createRobot(x, z, tour, nav) {
   const { g, wheels, eyes, flag } = buildMesh()
   const pos = new THREE.Vector3(x, 0, z)
   const keys = new Set()
-  let clickTarget = null
   let idle = IDLE_BEFORE_TOUR - 1
   let tourIdx = 0
   let heading = 0
   let speed = 0
   let blink = 0
   let stuckTime = 0
-  let detour = 0
-  let detourSide = 1
-  let detourTries = 0
+  // The route being followed, where it leads, and whether it is a tour leg or a click.
+  let path = []
+  let target = null
+  let mode = null
+  let replans = 0
 
   addEventListener('keydown', (e) => keys.add(e.key.toLowerCase()))
   addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()))
@@ -115,12 +118,26 @@ export function createRobot(x, z, tour) {
     return best
   }
 
+  function plan(to, kind) {
+    target = to
+    mode = kind
+    path = nav.findPath(pos.x, pos.z, to[0], to[1])
+    stuckTime = 0
+  }
+
+  function nextTourLeg() {
+    tourIdx = (tourIdx + 1) % tour.length
+    replans = 0
+    plan(tour[tourIdx], 'tour')
+  }
+
   return {
     object: g,
     position: pos,
     goTo(point) {
-      clickTarget = new THREE.Vector2(point.x, point.z)
       idle = 0
+      replans = 0
+      plan([point.x, point.z], 'click')
     },
     get heading() {
       return heading
@@ -139,40 +156,37 @@ export function createRobot(x, z, tour) {
       let dir = null
       let pace = 1
       if (input.lengthSq() > 0) {
-        clickTarget = null
+        mode = null
+        path = []
         idle = 0
         dir = input.normalize()
-      } else if (clickTarget) {
-        const to = new THREE.Vector2(clickTarget.x - pos.x, clickTarget.y - pos.z)
-        if (to.length() < 0.15) clickTarget = null
-        else dir = to.normalize()
       } else {
-        const wasTouring = idle > IDLE_BEFORE_TOUR
-        idle += dt
-        if (idle > IDLE_BEFORE_TOUR) {
-          if (!wasTouring) tourIdx = nearestTourIdx()
-          const [tx, tz] = tour[tourIdx]
-          const to = new THREE.Vector2(tx - pos.x, tz - pos.z)
-          if (to.length() < 0.6) tourIdx = (tourIdx + 1) % tour.length
-          // Blocked: veer off to one side for a moment to get round it, alternating sides;
-          // only after several tries give up on the waypoint.
-          if (stuckTime > 0.8 && detour <= 0) {
-            detour = 1.1
-            detourSide = -detourSide
-            stuckTime = 0
-            if (++detourTries > 4) {
-              tourIdx = (tourIdx + 1) % tour.length
-              detourTries = 0
-            }
+        if (mode !== 'click') {
+          const wasTouring = idle > IDLE_BEFORE_TOUR
+          idle += dt
+          if (idle > IDLE_BEFORE_TOUR && (!wasTouring || mode !== 'tour')) {
+            tourIdx = nearestTourIdx() - 1
+            nextTourLeg()
           }
-          dir = to.normalize()
-          if (detour > 0) {
-            detour -= dt
-            dir.rotateAround(new THREE.Vector2(), detourSide * 1.3)
-          } else if (stuckTime === 0 && speed > SPEED * 0.4) {
-            detourTries = 0
+        }
+        if (mode) {
+          // Follow the route: head for the next point, dropping each as it is reached.
+          while (path.length && Math.hypot(path[0][0] - pos.x, path[0][1] - pos.z) < (path.length > 1 ? 0.7 : 0.25)) path.shift()
+          if (!path.length) {
+            if (mode === 'tour') nextTourLeg()
+            else mode = null
+          } else {
+            dir = new THREE.Vector2(path[0][0] - pos.x, path[0][1] - pos.z).normalize()
+            if (mode === 'tour') pace = 0.55
           }
-          pace = 0.55
+          // Knocked off the route (or something in the way): plan again from here, and give
+          // up on a waypoint that keeps proving unreachable.
+          if (stuckTime > 1) {
+            if (++replans > 3) {
+              if (mode === 'tour') nextTourLeg()
+              else mode = null
+            } else plan(target, mode)
+          }
         }
       }
       const targetSpeed = dir ? SPEED * pace : 0

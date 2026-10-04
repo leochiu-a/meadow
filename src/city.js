@@ -62,6 +62,19 @@ const PART_GEOMETRY = {
     flat.computeVertexNormals()
     return flat
   })(),
+  // Heap of broken concrete and dust under a rubble pile: a lumpy dome of radius 1, height 1.
+  mound: (() => {
+    const g = new THREE.SphereGeometry(1, 18, 7, 0, Math.PI * 2, 0, Math.PI / 2)
+    const pos = g.attributes.position
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i)
+      const k = 1 + (y > 0.02 ? range(-0.12, 0.12) : 0)
+      pos.setXYZ(i, pos.getX(i) * k, y * range(0.85, 1.1), pos.getZ(i) * k)
+    }
+    const flat = g.toNonIndexed()
+    flat.computeVertexNormals()
+    return flat
+  })(),
   // Reinforcing bar with a kink near its tip, base at the origin.
   rebar: mergeGeometries([
     new THREE.CylinderGeometry(0.014, 0.014, 0.8, 4).translate(0, 0.4, 0).toNonIndexed(),
@@ -81,12 +94,17 @@ const partPos = new THREE.Vector3()
 const partQuat = new THREE.Quaternion()
 const partScale = new THREE.Vector3()
 
-// Every part arrives in world space. Concrete chunks big enough to trip over become
-// obstacles, so the robot steers round rubble rather than driving through it.
+// Every part arrives in world space. Concrete chunks big enough to trip over, and heaps
+// too tall to cross, become obstacles, so the robot steers round rubble.
 function part(kind, matrix, color) {
   parts[kind].push({ matrix, color: tmpColor.set(color).clone() })
-  if (kind !== 'chunk') return
+  if (kind !== 'chunk' && kind !== 'mound') return
   matrix.decompose(partPos, partQuat, partScale)
+  // A heap too tall to roll over blocks across most of its width.
+  if (kind === 'mound') {
+    if (partScale.y > 0.7) addCircle(partPos.x, partPos.z, partScale.x * 0.7)
+    return
+  }
   const size = (partScale.x + partScale.z) / 2
   if (size > 0.35 && partPos.y + partScale.y * 0.4 > 0.12) addCircle(partPos.x, partPos.z, size * 0.45)
 }
@@ -99,6 +117,7 @@ export function flushCityParts() {
     ac: cityMat('#ffffff', { kind: 'paint' }),
     shutter: cityMat('#ffffff', { kind: 'metal' }),
     chunk: cityMat('#ffffff', { kind: 'concrete' }),
+    mound: cityMat('#ffffff', { kind: 'concrete', grime: 1.3 }),
     rebar: cityMat('#ffffff', { kind: 'metal' }),
   }
   // One InstancedMesh per kind per 40 m cell, so whole cells can be culled.
@@ -210,12 +229,18 @@ const CONCRETE = ['#8f8b84', '#9d988e', '#7c7871', '#a8a297', '#6f6b65']
 function rubble(local, x, z, { radius, height, count, tint = null }) {
   const q = new THREE.Quaternion()
   const e = new THREE.Euler()
+  // The heap itself, long since grown over with moss: a dome the chunks lie on, so nothing
+  // hangs in the air.
+  const peak = Math.min(height, radius * 0.6)
+  local.push(['mound', new THREE.Matrix4().compose(new THREE.Vector3(x, -0.05, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rand() * 6, 0)), new THREE.Vector3(radius, peak, radius * range(0.8, 1))), pick(['#6f7d4a', '#7a8656', '#66743f'])])
+  const surface = (r) => peak * Math.sqrt(Math.max(0, 1 - (r / radius) ** 2))
   for (let i = 0; i < count; i++) {
     const r = radius * Math.sqrt(rand())
     const a = rand() * Math.PI * 2
     const fall = 1 - r / radius
     const size = range(0.25, 0.6) + fall * range(0.2, 0.9)
-    const pos = new THREE.Vector3(x + Math.cos(a) * r, height * fall ** 1.3 * range(0.6, 1) - size * 0.2, z + Math.sin(a) * r)
+    // Half sunk into the heap's surface.
+    const pos = new THREE.Vector3(x + Math.cos(a) * r, surface(r) - size * 0.15, z + Math.sin(a) * r)
     q.setFromEuler(e.set(rand() * 6, rand() * 6, rand() * 6))
     const scale = new THREE.Vector3(size * range(0.8, 1.8), size * range(0.5, 1), size * range(0.8, 1.6))
     const color = tint && rand() < 0.35 ? tint : rand() < 0.08 ? pick(['#8c4b3c', '#a05a44']) : pick(CONCRETE)
@@ -224,11 +249,14 @@ function rubble(local, x, z, { radius, height, count, tint = null }) {
   for (let i = 0; i < count / 7; i++) {
     const r = radius * 0.7 * Math.sqrt(rand())
     const a = rand() * Math.PI * 2
-    const pos = new THREE.Vector3(x + Math.cos(a) * r, height * (1 - r / radius) * 0.8, z + Math.sin(a) * r)
+    const pos = new THREE.Vector3(x + Math.cos(a) * r, surface(r) - 0.1, z + Math.sin(a) * r)
     q.setFromEuler(e.set(range(-1, 1), rand() * 6, range(-1, 1)))
     local.push(['rebar', new THREE.Matrix4().compose(pos, q.clone(), new THREE.Vector3(1, range(0.8, 2), 1)), pick(['#5a3a26', '#6b4228', '#4a3020'])])
   }
 }
+
+// Height that puts a tilted box's lowest corner on the ground: w × h × d turned by rx, rz.
+const restingY = (w, h, d, rx, rz) => (Math.abs(Math.sin(rz)) * w + Math.abs(Math.sin(rx)) * d + h) / 2 - 0.05
 
 /**
  * Wall slab w wide whose top edge has broken away: about `broken` (0..1) of its height `h`
@@ -412,9 +440,14 @@ function collapsed(g, local, { w, d, clad }) {
   const slabMat = cityMat(pick(CONCRETE))
   const slabs = Math.floor(range(2, 5))
   for (let i = 0; i < slabs; i++) {
-    const slab = box(w * range(0.75, 1.02), 0.3, d * range(0.45, 0.85), slabMat)
-    slab.position.set(range(-0.6, 0.6), GROUND_FLOOR * 0.45 + i * range(0.6, 1.1), -d * range(0.45, 0.6))
-    slab.rotation.set(range(-0.4, 0.35), range(-0.15, 0.15), range(-0.3, 0.3))
+    // Pancaked floors stacked flat-ish, each resting on the one below.
+    const sw = w * range(0.75, 1.02)
+    const sd = d * range(0.45, 0.85)
+    const rx = range(-0.12, 0.12)
+    const rz = range(-0.1, 0.1)
+    const slab = box(sw, 0.3, sd, slabMat)
+    slab.position.set(range(-0.6, 0.6), i * 0.55 + restingY(sw, 0.3, sd, rx, rz), -d * range(0.45, 0.6))
+    slab.rotation.set(rx, range(-0.15, 0.15), rz, 'YXZ')
     g.add(slab)
   }
   rubble(local, 0, -d * 0.45, { radius: Math.max(w, d) * 0.55, height: 3.2, count: Math.round(w * 9), tint: clad.color.getStyle() })
@@ -592,9 +625,14 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
         const px = range(Math.min(...xs), Math.max(...xs))
         const pz = range(Math.min(...zs), Math.max(...zs))
         if (!pointInFootprint(px, pz, pts)) continue
-        const slab = box(range(2.5, 6), range(0.22, 0.32), range(2, 5), slabMat)
-        slab.position.set(px, range(0.3, Math.min(4, 1 + floors * 0.4)), pz)
-        slab.rotation.set(range(-0.6, 0.6), rand() * 6, range(-0.5, 0.5))
+        const sw = range(2.5, 6)
+        const sd = range(2, 5)
+        const rx = range(-0.35, 0.35)
+        const rz = range(-0.3, 0.3)
+        const slab = box(sw, 0.28, sd, slabMat)
+        // Lying on the ground, tipped so one edge rests on it.
+        slab.position.set(px, restingY(sw, 0.28, sd, rx, rz), pz)
+        slab.rotation.set(rx, rand() * 6, rz, 'YXZ')
         g.add(slab)
         i++
       }
@@ -691,10 +729,13 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
       o.receiveShadow = true
     }
   })
-  // Walls block; arcades are walkable up to the shopfronts, between the columns.
-  for (const e of edges) {
-    const back = arcadeDepth(e)
-    addSegment(e.ax - e.nx * back, e.az - e.nz * back, e.bx - e.nx * back, e.bz - e.nz * back, 0.3)
+  // Walls block along the closed outline (the inset one where arcades cut in, so its corners
+  // still meet); arcades are walkable up to the shopfronts, between the columns.
+  const outline = ruin === 'none' && inset ? inset : pts
+  for (let i = 0; i < outline.length; i++) {
+    const [ax, az] = outline[i]
+    const [bx, bz] = outline[(i + 1) % outline.length]
+    addSegment(ax, az, bx, bz, 0.3)
   }
   for (const [x, z] of columns) addCircle(x, z, 0.4)
   return g

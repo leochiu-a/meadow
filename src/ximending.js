@@ -3,7 +3,8 @@ import { setTerrain, noise, rand, range, pick, smoothstep } from './terrain.js'
 import { windUniforms } from './wind.js'
 import { createCityGround, GROUND, SIDEWALK, VEHICLE, MALL } from './city-ground.js'
 import { shophouse, mappedBuilding, toppledTower, flushCityParts, batchStatic, cityMat, GROUND_FLOOR, FLOOR } from './city.js'
-import { buildBlockers, colliders } from './collision.js'
+import { buildBlockers } from './collision.js'
+import { createNavGrid } from './walkmap.js'
 import { car, streetLamp, redHouseDressing, mrtExit, giantScreen, discLamp, mallPole, facadeAd, newWorldTower, cinemaFront, ringTotem, haloPole, rooftopBillboard, noodleStand } from './city-props.js'
 import { graffiti } from './graffiti.js'
 import { createGrass, createFlowers, createReeds, createTree, createBush } from './vegetation.js'
@@ -258,8 +259,6 @@ function build(scene) {
   const fall = Math.atan2(towerBase[0] - towerFace[0], towerBase[1] - towerFace[1])
   const tower = toppledTower({ x: towerBase[0], z: towerBase[1], rotY: fall, w: 8, d: 9, floors: 8 })
   city.add(tower.group)
-  // What the minimap shows: every footprint and how ruined it is, the exits, the tower.
-  const plan = { footprints: [] }
   const tdx = Math.sin(fall)
   const tdz = Math.cos(fall)
   const towerLen = Math.hypot(tower.to[0] - tower.from[0], tower.to[1] - tower.from[1])
@@ -287,7 +286,6 @@ function build(scene) {
     const emeiFace = streetFace(b.pts, '峨眉街')
     const known = atSquare || wuchangFace || emeiFace
     const ruin = red || newWorld || cinemaFace ? 'none' : known ? (rand() < 0.65 ? 'none' : 'shell') : RUINS(rand())
-    plan.footprints.push({ pts: b.pts, ruin: red || newWorld ? 'landmark' : ruin })
     city.add(
       mappedBuilding({
         pts: b.pts,
@@ -410,7 +408,6 @@ function build(scene) {
       for (const [sx, sz] of rectSamples(cx, cz, dx, dz, w + 0.6, d + 0.6, 10)) taken.mark(sx, sz)
       const r = rand()
       const ruin = r < 0.35 ? 'collapsed' : r < 0.8 ? 'shell' : r < 0.88 ? 'lean' : 'none'
-      plan.footprints.push({ pts: [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => [cx + dx * a * (w / 2) - dz * b * (d / 2), cz + dz * a * (w / 2) + dx * b * (d / 2)]), ruin })
       city.add(shophouse({ x, z, w, d, floors: Math.floor(range(2, 7)), rotY: Math.atan2(fx, fz), signs: rand() < 0.6 ? 2 : 1, ruin }))
     },
   )
@@ -469,7 +466,9 @@ function build(scene) {
   scene.add(createReeds(reeds))
   scene.add(dust())
 
-  return { update() {}, cows: [], chickens: [], minimap: { bounds: data.bounds, title: '西門町', draw: (ctx, px) => drawPlan(ctx, px, plan) } }
+  // Every collider is in place now: plan routes on them, and draw the minimap from them.
+  const nav = createNavGrid(data.bounds)
+  return { update() {}, cows: [], chickens: [], nav, minimap: { bounds: data.bounds, title: '西門町', draw: (ctx, px) => drawPlan(ctx, px, nav) } }
 }
 
 // Nearest point on a named street's centreline, with the unit normal pointing from the
@@ -632,7 +631,7 @@ const exit6 = exitPlan(data.entrances.find((e) => e.ref === '6'))
 const start = [exit6.x + Math.sin(exit6.yaw) * (exit6.length / 2 + 3), exit6.z + Math.cos(exit6.yaw) * (exit6.length / 2 + 3)]
 
 // The minimap, drawn like a game map: soft meadow ground, cartoon roads with a dark
-// outline, blocks as plain soft shapes. No labels or markers.
+// outline, and soft shapes wherever the robot cannot go. No labels or markers.
 const MAP = {
   ground: '#9ccf6a',
   groundDot: 'rgba(255,255,255,0.12)',
@@ -642,7 +641,7 @@ const MAP = {
   blockShade: 'rgba(80,64,40,0.25)',
 }
 
-function drawPlan(ctx, px, plan) {
+function drawPlan(ctx, px, nav) {
   const path = (pts, close) => {
     ctx.beginPath()
     pts.forEach(([x, z], i) => (i ? ctx.lineTo(...px(x, z)) : ctx.moveTo(...px(x, z))))
@@ -660,38 +659,6 @@ function drawPlan(ctx, px, plan) {
     ctx.arc(rand() * w, rand() * h, 0.8 + rand() * 1.4, 0, Math.PI * 2)
     ctx.fill()
   }
-  // What blocks the robot, as it really is: buildings still standing are solid blocks
-  // (nothing gets inside them); for everything else — ruined walls, rubble, columns, trees,
-  // wrecked cars — each collider is drawn at its true size, so open ground on the map is
-  // open ground in the scene.
-  const scale = px(1, 0)[0] - px(0, 0)[0]
-  const SOLID = new Set(['none', 'lean', 'landmark'])
-  const solids = plan.footprints.filter((f) => SOLID.has(f.ruin))
-  const inSolid = (x, z) => solids.some((f) => pointInPolygon(x, z, f.pts))
-  ctx.lineJoin = 'round'
-  ctx.lineCap = 'round'
-  for (const offset of [1.5, 0]) {
-    ctx.save()
-    ctx.translate(0, offset)
-    ctx.fillStyle = ctx.strokeStyle = offset ? MAP.blockShade : MAP.block
-    for (const { pts } of solids) {
-      path(pts, true)
-      ctx.lineWidth = 2.5
-      ctx.fill()
-      ctx.stroke()
-    }
-    for (const c of colliders) {
-      if (inSolid((c.ax + c.bx) / 2, (c.az + c.bz) / 2)) continue
-      const [ax, ay] = px(c.ax, c.az)
-      const [bx, by] = px(c.bx, c.bz)
-      ctx.lineWidth = Math.max(1.6, c.r * 2 * scale)
-      ctx.beginPath()
-      ctx.moveTo(ax, ay)
-      ctx.lineTo(bx + (ax === bx && ay === by ? 0.01 : 0), by)
-      ctx.stroke()
-    }
-    ctx.restore()
-  }
   // Roads: an outline pass then the fill, two widths only — main roads and the rest.
   const width = (r) => (['primary', 'secondary', 'tertiary'].includes(r.kind) ? 9 : MALL.has(r.kind) ? 7 : 5)
   for (const [colour, extra] of [[MAP.roadEdge, 2.5], [MAP.road, 0]]) {
@@ -702,6 +669,33 @@ function drawPlan(ctx, px, plan) {
       ctx.stroke()
     }
   }
+  // Everything the robot cannot get to, worked out from the scene's own colliders: walls,
+  // rubble, trees and wrecks, and whatever they wall in. Painted from the grid with
+  // smoothing so the shapes come out soft, with a drop shadow under them.
+  const { cols, rows, cell, reach } = nav
+  const mask = document.createElement('canvas')
+  mask.width = cols
+  mask.height = rows
+  const mctx = mask.getContext('2d')
+  const img = mctx.createImageData(cols, rows)
+  for (let k = 0; k < reach.length; k++) img.data[k * 4 + 3] = reach[k] ? 0 : 255
+  mctx.putImageData(img, 0, 0)
+  const [ox, oy] = px(data.bounds.minX, data.bounds.minZ)
+  const [ex, ey] = px(data.bounds.minX + cols * cell, data.bounds.minZ + rows * cell)
+  const tint = (colour) => {
+    const t = document.createElement('canvas')
+    t.width = cols
+    t.height = rows
+    const tctx = t.getContext('2d')
+    tctx.drawImage(mask, 0, 0)
+    tctx.globalCompositeOperation = 'source-in'
+    tctx.fillStyle = colour
+    tctx.fillRect(0, 0, cols, rows)
+    return t
+  }
+  ctx.imageSmoothingEnabled = true
+  ctx.drawImage(tint(MAP.blockShade), ox, oy + 1.5, ex - ox, ey - oy)
+  ctx.drawImage(tint(MAP.block), ox, oy, ex - ox, ey - oy)
 }
 
 // Patrol: out of Exit 6, up the Hanzhong mall, west along Emei Street past the noodle stand,
