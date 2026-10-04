@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { rand, range, pick } from './terrain.js'
 import { addCircle, addSegment } from './collision.js'
 import { cityMat } from './city.js'
@@ -887,4 +888,142 @@ export function giantScreen(x, z, rotY, { w = 8, h = 4.5, lift = 6, fallen = fal
   const s = Math.sin(rotY)
   for (const lx of [-w * 0.3, w * 0.3]) addCircle(x + lx * c - 1.1 * s, z - lx * s - 1.1 * c, 0.7)
   return g
+}
+
+// Paper posters from the last months before the city emptied: the relocation order, the
+// last train, shops saying goodbye. Each draws onto a weathered sheet with stains and a
+// torn corner.
+const POSTERS = {
+  relocation: { band: '#3f8a4e', title: '綠洲遷居計畫', lines: ['第一期 公告', '萬華區・西門町居民', '請於 2054 年 4 月 30 日前', '完成遷居登記'], foot: '臺北市政府' },
+  lastTrain: { band: '#2f6fb0', title: '捷運西門站', lines: ['最後一班列車', '4 月 30 日 23:40', '此後全線停駛', '感謝搭乘'], foot: '臺北捷運' },
+  noodle: { hand: true, title: '阿忠麵線', lines: ['營業至 4/30', '謝謝大家', '四十年的照顧', '山上見！'] },
+  cinema: { band: '#8a2a2a', title: '日昇戲院', lines: ['最終放映', '2054.4.28 午夜場', '謝謝你們', '陪我們看到最後'], foot: '' },
+  volunteer: { band: '#c87a2a', title: '清淤志工集合', lines: ['每日 08:00', '紅樓前廣場', '雨鞋・手套・水桶', '請自備'], foot: '西門町里辦公處' },
+}
+
+function posterTexture(kind) {
+  const p = POSTERS[kind]
+  return canvasTexture(256, 340, (ctx) => {
+    ctx.fillStyle = '#efe6cf'
+    ctx.fillRect(0, 0, 256, 340)
+    const font = (size, weight = 800) => `${weight} ${size}px ${p.hand ? '"Kaiti TC", "BiauKai", ' : ''}"PingFang TC", "Heiti TC", sans-serif`
+    ctx.textAlign = 'center'
+    if (p.band) {
+      ctx.fillStyle = p.band
+      ctx.fillRect(0, 0, 256, 64)
+      ctx.fillStyle = '#ffffff'
+      ctx.font = font(32)
+      ctx.fillText(p.title, 128, 44)
+    } else {
+      ctx.fillStyle = '#b8241c'
+      ctx.font = font(42)
+      ctx.fillText(p.title, 128, 58)
+    }
+    ctx.fillStyle = p.hand ? '#b8241c' : '#2a2420'
+    p.lines.forEach((line, i) => {
+      ctx.font = font(i === 0 && !p.hand ? 28 : 22, i === 0 ? 800 : 600)
+      ctx.fillText(line, 128, 110 + i * 44)
+    })
+    if (p.foot) {
+      ctx.fillStyle = '#6a5a48'
+      ctx.font = font(16, 600)
+      ctx.fillText(p.foot, 128, 318)
+    }
+    // Water stains, mould spots and a torn-off corner.
+    for (let i = 0; i < 7; i++) {
+      ctx.fillStyle = `rgba(110, 80, 40, ${0.08 + rand() * 0.12})`
+      ctx.beginPath()
+      ctx.ellipse(rand() * 256, 200 + rand() * 140, 20 + rand() * 50, 12 + rand() * 30, rand() * 3, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.fillStyle = 'rgba(90, 70, 40, 0.35)'
+    ctx.fillRect(0, 300, 256, 40)
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.beginPath()
+    ctx.moveTo(256, 340)
+    ctx.lineTo(256 - 50 - rand() * 30, 340)
+    ctx.lineTo(256, 340 - 40 - rand() * 40)
+    ctx.fill()
+  })
+}
+
+/**
+ * A low notice board on two short legs, front facing +z at yaw 0, leaning well back like a
+ * lectern so the steep camera can read it close to the robot.
+ */
+export function noticeBoard(x, z, yaw, kind) {
+  const g = new THREE.Group()
+  const wood = cityMat('#6a5440', { kind: 'wood', grime: 1.2 })
+  for (const sx of [-0.6, 0.6]) {
+    const post = mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.9, 6), wood)
+    post.position.set(sx, 0.45, -0.15)
+    g.add(post)
+  }
+  const board = new THREE.Group()
+  board.position.set(0, 0.62, 0)
+  board.rotation.x = -0.8
+  board.add(rbox(1.6, 1.12, 0.06, 0.02, wood))
+  const posterMat = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: posterTexture(kind), roughness: 0.9, transparent: true }), { kind: 'paint', grime: 0.6, fade: 0.25 }))
+  const poster = mesh(new THREE.PlaneGeometry(0.78, 1.03), posterMat)
+  poster.position.set(-0.22, 0, 0.035)
+  poster.rotation.z = range(-0.05, 0.05)
+  board.add(poster)
+  // A second, older sheet half torn away beside it.
+  const scrap = mesh(new THREE.PlaneGeometry(0.4, 0.5), cityMat('#d8ccb0', { kind: 'paint', fade: 0.5 }))
+  scrap.position.set(0.52, 0.15, 0.034)
+  scrap.rotation.z = range(-0.2, 0.2)
+  board.add(scrap)
+  g.add(board)
+  addSegment(x - Math.cos(yaw) * 0.6, z + Math.sin(yaw) * 0.6, x + Math.cos(yaw) * 0.6, z - Math.sin(yaw) * 0.6, 0.15)
+  return place(g, x, z, yaw)
+}
+
+/** Green evacuation sign on a pole pointing the way to high ground, facing +z at yaw 0. */
+export function evacSign(x, z, yaw, arrow = 1) {
+  const g = new THREE.Group()
+  const pole = mesh(new THREE.CylinderGeometry(0.045, 0.05, 2.3, 8), cityMat('#8a8e90', { kind: 'metal' }))
+  pole.position.y = 1.15
+  g.add(pole)
+  const tex = canvasTexture(256, 128, (ctx) => {
+    ctx.fillStyle = '#2f8a4a'
+    ctx.fillRect(0, 0, 256, 128)
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 6
+    ctx.strokeRect(6, 6, 244, 116)
+    ctx.fillStyle = '#ffffff'
+    ctx.textAlign = 'center'
+    ctx.font = '800 30px "PingFang TC", "Heiti TC", sans-serif'
+    ctx.fillText('疏散方向', 128, 50)
+    ctx.font = '700 22px "PingFang TC", "Heiti TC", sans-serif'
+    ctx.fillText(arrow > 0 ? '高地避難所 ➜' : '⬅ 高地避難所', 128, 96)
+  })
+  const face = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 }), { kind: 'paint', grime: 0.8, fade: 0.35 }))
+  const edge = cityMat('#2f8a4a', { kind: 'paint' })
+  const sign = mesh(new THREE.BoxGeometry(0.9, 0.45, 0.03), [edge, edge, edge, edge, face, edge])
+  sign.position.set(0, 2.05, 0.05)
+  sign.rotation.set(-0.25, 0, range(-0.06, 0.06))
+  g.add(sign)
+  addCircle(x, z, 0.1)
+  return place(g, x, z, yaw)
+}
+
+/** A sandbag wall `length` m long along local x, `rows` high, the way shops met the flood. */
+export function sandbags(x, z, yaw, length, rows = 3) {
+  const bags = []
+  const per = Math.max(1, Math.round(length / 0.55))
+  for (let r = 0; r < rows; r++) {
+    const n = per - r
+    for (let i = 0; i < n; i++) {
+      const bx = (i - (n - 1) / 2) * 0.55 + range(-0.03, 0.03)
+      bags.push(new THREE.SphereGeometry(0.5, 10, 6).scale(0.56, 0.2, 0.34).rotateY(range(-0.1, 0.1)).translate(bx, 0.09 + r * 0.17, range(-0.03, 0.03)))
+    }
+  }
+  const geo = mergeGeometries(bags)
+  const wall = mesh(geo, cityMat('#bcab84', { kind: 'paint', grime: 1.1, fade: 0.3 }))
+  const g = new THREE.Group()
+  g.add(wall)
+  const hx = (Math.cos(yaw) * per * 0.55) / 2
+  const hz = (-Math.sin(yaw) * per * 0.55) / 2
+  addSegment(x - hx, z - hz, x + hx, z + hz, 0.25)
+  return place(g, x, z, yaw)
 }

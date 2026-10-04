@@ -1,8 +1,8 @@
 import * as THREE from 'three'
 import { weathered } from './weathering.js'
 
-// Relics left behind from before: what each one is, the memory it carries, a hint at where
-// it lies, and its little model. Each scene places them by id (see `relics` in its build).
+// Relics left behind from before: what each one is, when its memory is from, the memory
+// itself, a hint at where it lies, and its little model. Each scene places them by id (see `relics` in its build).
 // Models are built at display size, roughly half a metre across, so they read in the grass.
 
 const std = (color, opts = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, ...opts })
@@ -91,7 +91,7 @@ const MODELS = {
       c.fillRect(20, 14, w - 40, 70)
       c.fillStyle = '#c0392b'
       c.font = 'bold 22px "PingFang TC", sans-serif'
-      c.fillText('西門 MIX ’98', 32, 54)
+      c.fillText('西門 MIX ’52', 32, 54)
       c.fillStyle = '#111'
       c.fillRect(60, 100, w - 120, 40)
     }, '#2a2a2e')
@@ -223,7 +223,7 @@ const MODELS = {
       c.stroke()
       c.fillStyle = '#4a3a2a'
       c.font = 'italic 20px serif'
-      c.fillText('給 小麥', 20, h - 22)
+      c.fillText('給 阿聲', 20, h - 22)
     })
     const seal = mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.012, 14), std('#a3241c'), 0, 0.012, 0.01)
     return group(env, seal)
@@ -244,25 +244,27 @@ const MODELS = {
   },
 }
 
+// In story order: each find is a memory DLV-06 recovers, from the first flood warnings to
+// the night of the last train (see story.js). The meadow's tell of life after the move.
 export const RELICS = {
   ximending: [
-    { id: 'ticket', name: '電影票根', hint: '電影街的騎樓下', story: '日昇戲院的午夜場，7 排 12 號。散場時武昌街還很亮，大家擠在騎樓下等雨停。' },
-    { id: 'noodleBowl', name: '麵線碗', hint: '總是排著隊的那個攤子', story: '站著吃的麵線，碗燙得要用兩隻手捧。排隊的人裡有觀光客、學生，也有剛下班的人。' },
-    { id: 'card', name: '悠悠卡', hint: '六號出口附近', story: '「嗶」一聲走出捷運站，就是西門町。卡裡還剩 37 元，再也用不到了。' },
-    { id: 'neon', name: '霓虹燈管', hint: '峨眉街', story: '曾經一整排招牌徹夜亮著，粉紅色的光映在濕濕的柏油路上。' },
-    { id: 'cassette', name: '卡帶', hint: '紅樓附近', story: '手寫標籤的混音帶。A 面是那年夏天的歌，B 面錄到一半就斷了。' },
-    { id: 'bubbleTea', name: '珍奶杯', hint: '漢中街徒步區', story: '半糖少冰。杯底還黏著兩顆珍珠，吸管被咬得扁扁的。' },
-    { id: 'sneaker', name: '球鞋', hint: '新世界大樓那頭', story: '排了一整夜才買到的限量款，只穿過一次，捨不得踩髒。' },
-    { id: 'vinyl', name: '黑膠唱片', hint: '武昌街往東', story: '二手唱片行的老闆說這張很難找。封套上的人，現在也不知道去哪了。' },
-    { id: 'flipPhone', name: '折疊手機', hint: '西寧南路', story: '螢幕還亮著一點點微光。最後一封簡訊寫著：「我在六號出口等你」。' },
-    { id: 'skateboard', name: '滑板', hint: '成都路', story: '晚上在紅樓前的廣場練習，摔了很多次，膝蓋上的疤到現在都還在。' },
+    { id: 'ticket', date: '2049.07', name: '電影票根', hint: '電影街的騎樓下', story: '日昇戲院的午夜場。散場時河堤的警報響了，大家笑著說「又來了」，撐著傘去吃宵夜。那年夏天，警報響了九次。' },
+    { id: 'bubbleTea', date: '2050.06', name: '珍奶杯', hint: '漢中街徒步區', story: '半糖少冰。店門口貼了新告示：「因淹水保險調漲，飲品一律加價五元。」杯底還黏著兩顆珍珠。' },
+    { id: 'vinyl', date: '2051.08', name: '黑膠唱片', hint: '武昌街往東', story: '二手唱片行把唱片全搬上二樓，老闆說：「水只會淹到膝蓋，到不了這裡。」這張放在最上層，所以留了下來。' },
+    { id: 'neon', date: '2052.09', name: '霓虹燈管', hint: '峨眉街', story: '白鷺颱風那一夜，淡水河漫過了河堤。峨眉街的招牌一盞一盞熄滅，那是四十年來第一次全暗。水，停在一樓半的高度。' },
+    { id: 'cassette', date: '2052.10', name: '卡帶', hint: '紅樓附近', story: '水退了三週，紅樓前擠滿清淤的志工。有人用收音機錄下大家邊鏟泥邊唱的歌，標籤寫著「西門 MIX ’52」。' },
+    { id: 'sneaker', date: '2053.03', name: '球鞋', hint: '新世界大樓那頭', story: '店重新開張的那一週，政府公布了「綠洲遷居計畫」，西門町列入第一期。這雙鞋只穿過一次。' },
+    { id: 'skateboard', date: '2053.11', name: '滑板', hint: '成都路', story: '搬家前的最後一個週末，大家在紅樓前的廣場溜到天亮。膝蓋上的疤，是這座城留給我的紀念。' },
+    { id: 'noodleBowl', date: '2054.04', name: '麵線碗', hint: '總是排著隊的那個攤子', story: '阿忠麵線最後一天營業，排隊的人比四十年來任何一天都多。老闆說：「山上見，到時候再煮給你們吃。」' },
+    { id: 'card', date: '2054.04', name: '悠悠卡', hint: '六號出口附近', story: '最後一班捷運，4 月 30 日 23:40。卡裡還剩 37 元，再也用不到了。' },
+    { id: 'flipPhone', date: '2054.04', name: '折疊手機', hint: '西寧南路', story: '最後一封簡訊，寄件人小麥：「我在六號出口等你。」還沒送出的回覆：「店裡收不完，我請外送機器人先把信送過去。」' },
   ],
   meadow: [
-    { id: 'musicBox', name: '音樂盒', hint: '小木屋旁', story: '轉幾圈發條，就會響起那段熟悉的旋律。原來一直在耳邊的音樂，是從這裡來的。' },
-    { id: 'pocketWatch', name: '懷錶', hint: '磚拱門下', story: '指針停在三點十分。錶蓋內側刻著一行小字：「別忘了回家吃飯」。' },
-    { id: 'oldKey', name: '舊鑰匙', hint: '鐵門旁', story: '打得開哪一扇門呢？鐵門早就鏽住了，門後只剩一片花。' },
-    { id: 'tinCar', name: '鐵皮小車', hint: '飼料箱附近', story: '上了發條會往前衝，撞到牆就翻過來。漆掉了好幾塊，是被玩得很愛的證明。' },
-    { id: 'letter', name: '信封', hint: '村子裡的小屋前', story: '收件人寫著「小麥」，沒有郵票，也一直沒有寄出。' },
+    { id: 'pocketWatch', date: '2054.05', name: '懷錶', hint: '磚拱門下', story: '指針停在 23:40，最後一班捷運開走的時間。從那天起，就再也沒有人替它上過發條。' },
+    { id: 'oldKey', date: '2058', name: '舊鑰匙', hint: '鐵門旁', story: '西門町老家的鑰匙。那扇門早就泡過水了，還是捨不得丟。' },
+    { id: 'tinCar', date: '2066', name: '鐵皮小車', hint: '飼料箱附近', story: '在山上出生的孩子，把城裡帶來的玩具一個個玩到掉漆。他們從來沒見過捷運。' },
+    { id: 'letter', date: '2079', name: '信封', hint: '村子裡的攤子旁', story: '收件人寫著「阿聲」，地址是西門町的舊店。沒有郵差會去那裡了，所以每年寫一封，每年都沒有寄出。' },
+    { id: 'musicBox', date: '2085', name: '音樂盒', hint: '小木屋旁', story: '每天傍晚，村子裡都會飄來這段旋律。原來一直在耳邊的音樂，是有人每天替它轉一次發條。' },
   ],
 }
 

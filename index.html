@@ -95,6 +95,8 @@
       #book .slot img { width: 72px; height: 72px; }
       #book .missing img, #book .detail img.unknown { filter: brightness(0) opacity(0.28); }
       #book .missing span { color: #a89070; }
+      #book .slot small, #book .detail small { color: #b08a5a; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+      #book .detail small { display: block; }
       #book .detail { display: flex; gap: 14px; align-items: center; min-height: 96px; margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: #f6ecd4; }
       #book .detail img { width: 96px; height: 96px; flex: none; }
       #book .detail b { font-size: 16px; }
@@ -104,6 +106,26 @@
         position: absolute; right: 10px; top: 8px; width: 30px; height: 30px; border: 0; border-radius: 50%;
         font-size: 20px; line-height: 30px; cursor: pointer; background: transparent; color: #8a6a3e;
       }
+      #radar.order { color: #b8352a; }
+      /* Story log: the robot's system lines in terminal green, memories in plain text, the letter on paper. */
+      #story {
+        position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center;
+        padding: 24px; box-sizing: border-box; background: rgba(12, 14, 10, 0.86); opacity: 0; pointer-events: none;
+        transition: opacity 0.5s; cursor: pointer; z-index: 10;
+      }
+      #story.open { opacity: 1; pointer-events: auto; }
+      #story .log { width: min(560px, 100%); }
+      #story p { margin: 0 0 14px; animation: storyIn 0.6s ease-out both; white-space: pre-line; }
+      #story .sys { font: 15px/1.6 ui-monospace, "SF Mono", Menlo, monospace; color: #9fe39a; letter-spacing: 0.5px; }
+      #story .warn { color: #ffb454; }
+      #story .line { font: 17px/1.8 "PingFang TC", "Heiti TC", system-ui, sans-serif; color: #f2ede0; }
+      #story .letter {
+        padding: 18px 22px; border-radius: 6px; background: #f3ead2; color: #3a2a1c; transform: rotate(-0.6deg);
+        font: 17px/1.9 "Kaiti TC", "BiauKai", "PingFang TC", serif; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      }
+      #story .next { margin-top: 18px; font: 13px system-ui, sans-serif; color: rgba(242, 237, 224, 0.6); animation: storyBlink 1.6s infinite; }
+      @keyframes storyIn { from { opacity: 0; transform: translateY(6px); } }
+      @keyframes storyBlink { 50% { opacity: 0.4; } }
       /* Narrow screens: the radar and its card drop below the minimap's corner. */
       @media (max-width: 640px) {
         #radar { top: auto; bottom: 76px; }

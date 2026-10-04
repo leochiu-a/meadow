@@ -6,7 +6,7 @@ import { shophouse, mappedBuilding, toppledTower, flushCityParts, batchStatic, c
 import { buildBlockers } from './collision.js'
 import { createNavGrid } from './walkmap.js'
 import { createCat, createDog, createPigeonFlock } from './strays.js'
-import { car, streetLamp, redHouseDressing, mrtExit, giantScreen, discLamp, mallPole, facadeAd, newWorldTower, cinemaFront, ringTotem, haloPole, rooftopBillboard, noodleStand } from './city-props.js'
+import { car, streetLamp, redHouseDressing, mrtExit, giantScreen, discLamp, mallPole, facadeAd, newWorldTower, cinemaFront, ringTotem, haloPole, rooftopBillboard, noodleStand, noticeBoard, evacSign, sandbags } from './city-props.js'
 import { graffiti } from './graffiti.js'
 import { createGrass, createFlowers, createReeds, createTree, createBush } from './vegetation.js'
 import { brickMaterial } from './bricks.js'
@@ -343,15 +343,47 @@ function build(scene) {
     if (!taken.has(tx, tz) && inView([tx, tz])) city.add(haloPole(tx, tz, { lean: rand() < 0.25 ? range(0.08, 0.25) : 0 }))
   })
   {
-    const [ex, ez] = crossing('漢中街', '峨眉街')
     // Backed against the north storefronts, facing south, so its sign faces the camera.
-    const road = nearestOnRoad('峨眉街', ex - 14, ez)
-    const north = road.nz < 0 ? 1 : -1
-    const back = road.half - 0.3
-    const x = road.px + road.nx * north * back
-    const z = road.pz + road.nz * north * back
-    city.add(noodleStand(x, z, Math.atan2(-road.nx * north, -road.nz * north)))
-    for (const [ox, oz] of rectSamples(x, z, 1, 0, 8, 4)) taken.mark(ox, oz)
+    const [ex, ez] = crossing('漢中街', '峨眉街')
+    const stand = kerb('峨眉街', ex - 14, ez, 0.3)
+    city.add(noodleStand(stand.x, stand.z, stand.yaw))
+    for (const [ox, oz] of rectSamples(stand.x, stand.z, 1, 0, 8, 4)) taken.mark(ox, oz)
+  }
+
+  // The last months before everyone left: notices posted after the great flood, the way to
+  // high ground, and the sandbags shops stacked against the water.
+  {
+    const at = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]
+    const emei = crossing('漢中街', '峨眉街')
+    const wuchang = crossing('漢中街', '武昌街二段')
+    const cinemas = crossing('西寧南路', '武昌街二段')
+    const chengdu = crossing('漢中街', '成都路')
+    const redHouse = centroid(data.buildings.find((b) => b.name?.includes('紅樓')).pts)
+    const put = (spot, make, size = 2) => {
+      if (taken.has(spot.x, spot.z)) return
+      city.add(make(spot))
+      for (const [ox, oz] of rectSamples(spot.x, spot.z, 1, 0, size, size)) taken.mark(ox, oz)
+    }
+    const board = (kind) => (s) => noticeBoard(s.x, s.z, 0, kind)
+    put(kerb('成都路', exit6.x - 7, exit6.z, 0.6), board('relocation'))
+    put(kerb('峨眉街', emei[0] - 9.5, emei[1], 0.5), board('noodle'))
+    put(kerb('武昌街二段', ...at(wuchang, cinemas, 0.35), 0.6), board('cinema'))
+    put(kerb('成都路', redHouse[0] + 4, redHouse[1], 0.6), board('volunteer'))
+    put(kerb('漢中街', ...at(chengdu, emei, 0.55), 0.6), board('relocation'))
+    put(kerb('漢中街', ...at(emei, wuchang, 0.5), 0.6), (s) => evacSign(s.x, s.z, 0, 1), 1)
+    put(kerb('西寧南路', ...at(crossing('西寧南路', '峨眉街'), cinemas, 0.3), 0.6), (s) => evacSign(s.x, s.z, 0, -1), 1)
+    // The station's last-train notice beside the Exit 6 mouth, and sandbags along its sides.
+    const ax = Math.sin(exit6.yaw)
+    const az = Math.cos(exit6.yaw)
+    const mouth = [exit6.x + ax * (exit6.length / 2 + 1.4) + az * (exit6.width / 2 + 0.9), exit6.z + az * (exit6.length / 2 + 1.4) - ax * (exit6.width / 2 + 0.9)]
+    city.add(noticeBoard(...mouth, 0, 'lastTrain'))
+    for (const side of [-1, 1]) {
+      const off = exit6.width / 2 + 0.55
+      city.add(sandbags(exit6.x + az * off * side + ax * exit6.length * 0.15, exit6.z - ax * off * side + az * exit6.length * 0.15, exit6.yaw - Math.PI / 2, exit6.length * 0.5, 3))
+    }
+    for (const [street, x, z] of [['峨眉街', emei[0] - 26, emei[1]], ['峨眉街', emei[0] - 36, emei[1]], ['武昌街二段', ...at(wuchang, cinemas, 0.7)], ['漢中街', ...at(chengdu, emei, 0.25)]]) {
+      put(kerb(street, x, z, 0.4), (s) => sandbags(s.x, s.z, s.yaw, range(2.2, 3.4), rand() < 0.5 ? 2 : 3), 3)
+    }
   }
 
   // The Exit 6 square's disc lamps, a couple heaved over by roots.
@@ -483,12 +515,26 @@ function build(scene) {
       pigeon: animals.filter((a) => a.kind === 'pigeon').map((a) => a.positions[0]),
     },
     relics,
+    story: { finale },
     nav,
     minimap: { bounds: data.bounds, title: '西門町', draw: (ctx, px) => drawPlan(ctx, px, nav) } }
 }
 
 // Nearest point on a named street's centreline, with the unit normal pointing from the
 // street toward (x, z) and the street's half-width.
+// A spot `inset` m in from the kerb on `street` near (x, z): the north kerb of an east–west
+// street, the west kerb of a north–south one. yaw faces it out across the street, which
+// also turns local x along the kerb.
+function kerb(street, x, z, inset) {
+  const road = nearestOnRoad(street, x, z)
+  const eastWest = Math.abs(road.nz) > Math.abs(road.nx)
+  const flip = (eastWest ? road.nz > 0 : road.nx > 0) ? -1 : 1
+  const nx = road.nx * flip
+  const nz = road.nz * flip
+  const back = road.half - inset
+  return { x: road.px + nx * back, z: road.pz + nz * back, yaw: Math.atan2(-nx, -nz) }
+}
+
 function nearestOnRoad(name, x, z) {
   let best = null
   for (const r of roadsNamed(name)) {
@@ -644,7 +690,14 @@ function exitPlan(e) {
 
 // Just outside the mouth of Exit 6, as if the robot had come up the stairs.
 const exit6 = exitPlan(data.entrances.find((e) => e.ref === '6'))
-const start = [exit6.x + Math.sin(exit6.yaw) * (exit6.length / 2 + 3), exit6.z + Math.cos(exit6.yaw) * (exit6.length / 2 + 3)]
+// The last order was bound for the Exit 6 mouth; the robot wakes on Emei Street, where it
+// stopped when the power went.
+const finale = [exit6.x + Math.sin(exit6.yaw) * (exit6.length / 2 + 3), exit6.z + Math.cos(exit6.yaw) * (exit6.length / 2 + 3)]
+const start = (() => {
+  const [ex, ez] = crossing('漢中街', '峨眉街')
+  const road = nearestOnRoad('峨眉街', ex - 6, ez)
+  return [road.px, road.pz]
+})()
 
 // The minimap, drawn like a game map: soft meadow ground, cartoon roads with a dark
 // outline, and soft shapes wherever the robot cannot go. No labels or markers.

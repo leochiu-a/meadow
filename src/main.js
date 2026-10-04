@@ -11,6 +11,7 @@ import { createOrbit } from './orbit.js'
 import { createWeather, createRain, applyWet, overcastEnvironment } from './weather.js'
 import { createScavenge } from './scavenge.js'
 import { createCollectionUI } from './collection.js'
+import { createStory } from './story.js'
 
 const renderer = new THREE.WebGLRenderer({ powerPreference: 'high-performance', antialias: false, stencil: false })
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
@@ -22,7 +23,8 @@ document.body.appendChild(renderer.domElement)
 // Scenes are picked by ?scene=; each brings its own look, start point and patrol route.
 const SCENES = { meadow, ximending }
 const requested = new URLSearchParams(location.search).get('scene')
-const sceneName = requested in SCENES ? requested : 'meadow'
+// The story begins in the city.
+const sceneName = requested in SCENES ? requested : 'ximending'
 const def = SCENES[sceneName]
 const { look } = def
 
@@ -61,13 +63,19 @@ scene.add(robot.object)
 // Scavenging: relics to find, a radar to find them with, and a book to keep them in.
 let audio = null
 const scavenge = createScavenge(scene, sceneName, world.relics, {
-  onCollect: (def) => {
+  onCollect: (def, found) => {
     collection.collected(def)
     audio.chime()
+    if (found.size === scavenge.defs.length) setTimeout(() => story.relicsDone(), 2500)
   },
   onPing: (signal) => audio.ping(signal),
 })
 const collection = createCollectionUI(scavenge.defs, scavenge.found)
+const story = createStory(sceneName, world.story, {
+  allFound: () => scavenge.found.size === scavenge.defs.length,
+  goTo: (name) => (location.search = `?scene=${name}`),
+})
+setTimeout(() => story.start(), 800)
 
 const { composer, ao, setRain } = createComposer(renderer, scene, camera)
 
@@ -162,8 +170,11 @@ function step(dt) {
   windUniforms.uTime.value = t
   weather.update(dt)
   robot.update(t, dt, orbit.yaw)
-  scavenge.update(t, dt, robot.position, !robot.touring)
+  const goal = story.objective
+  scavenge.update(t, dt, robot.position, !robot.touring, goal)
+  story.update(robot.position)
   collection.setSignal(scavenge.signal)
+  collection.setObjective(goal?.label)
   world.update(t, dt, robot.position)
   if (world.events) for (const e of world.events.splice(0)) audio.cue(e, robot.position)
   audio.update(dt, { listener: robot.position, robotSpeed: robot.speed, voices: world.voices, rain: weather.rain })

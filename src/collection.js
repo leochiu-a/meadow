@@ -54,14 +54,14 @@ export function createCollectionUI(defs, found) {
 
   const book = document.createElement('div')
   book.id = 'book'
-  book.innerHTML = '<div class="page"><div class="ribbon">拾荒圖鑑</div><div class="grid"></div><div class="detail"></div><button class="close" aria-label="關閉">×</button></div>'
+  book.innerHTML = '<div class="page"><div class="ribbon">記憶碎片</div><div class="grid"></div><div class="detail"></div><button class="close" aria-label="關閉">×</button></div>'
   document.body.appendChild(book)
   const grid = book.querySelector('.grid')
   const detail = book.querySelector('.detail')
 
   const show = (def) => {
     detail.innerHTML = found.has(def.id)
-      ? `<img src="${pics[def.id]}" alt=""><div><b>${def.name}</b><p>${def.story}</p></div>`
+      ? `<img src="${pics[def.id]}" alt=""><div><small>${def.date}</small><b>${def.name}</b><p>${def.story}</p></div>`
       : `<img class="unknown" src="${pics[def.id]}" alt=""><div><b>？？？</b><p>線索：${def.hint}</p></div>`
   }
   function render() {
@@ -71,11 +71,11 @@ export function createCollectionUI(defs, found) {
       const have = found.has(def.id)
       const slot = document.createElement('button')
       slot.className = have ? 'slot' : 'slot missing'
-      slot.innerHTML = `<img src="${pics[def.id]}" alt=""><span>${have ? def.name : '？？？'}</span>`
+      slot.innerHTML = `<img src="${pics[def.id]}" alt=""><span>${have ? def.name : '？？？'}</span><small>${have ? def.date : ''}</small>`
       slot.addEventListener('click', () => show(def))
       grid.appendChild(slot)
     }
-    detail.innerHTML = '<p class="lead">點一格看看。還沒找到的會給你線索。</p>'
+    detail.innerHTML = '<p class="lead">照時間排列的記憶碎片。點一格看看，還沒找到的會給你線索。</p>'
   }
   render()
 
@@ -101,10 +101,16 @@ export function createCollectionUI(defs, found) {
       bars.forEach((b, i) => b.classList.toggle('on', i < lit))
       radar.classList.toggle('hot', s > 0.75)
     },
+    // While the story has somewhere to go, the pill shows that instead of the count.
+    setObjective(label) {
+      const text = label ? `📦 ${label}` : `${found.size} / ${defs.length}`
+      if (count.textContent !== text) count.textContent = text
+      radar.classList.toggle('order', !!label)
+    },
     collected(def) {
       render()
       const done = found.size === defs.length
-      toast.innerHTML = `<img src="${pics[def.id]}" alt=""><div><small>${done ? '全部收集完成！' : '新收藏！'} ${found.size} / ${defs.length}</small><b>${def.name}</b><p>${def.story}</p></div>`
+      toast.innerHTML = `<img src="${pics[def.id]}" alt=""><div><small>${done ? '記憶全部找回' : '找回一段記憶'}・${found.size} / ${defs.length}・${def.date}</small><b>${def.name}</b><p>${def.story}</p></div>`
       toast.classList.add('show')
       clearTimeout(toastTimer)
       toastTimer = setTimeout(() => toast.classList.remove('show'), 6500)

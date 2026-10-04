@@ -783,3 +783,24 @@ export function stall(x, z, rotY = 0, awning = '#c4594a') {
   addCircle(x, z, 1.3)
   return shadowed(place(g, x, z, rotY))
 }
+
+// Xiaomai's mailbox: a little red box on a post by the cottage door, flag up, facing +z.
+export function mailbox(x, z, rotY = 0) {
+  const g = new THREE.Group()
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.1, 8), mat('#94592f'))
+  post.position.y = 0.55
+  const red = mat('#b8352a')
+  const box = new THREE.Mesh(new RoundedBoxGeometry(0.34, 0.3, 0.5, 2, 0.06), red)
+  box.position.y = 1.2
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.5, 16, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2), red)
+  lid.position.y = 1.35
+  const flag = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.22, 0.1), mat('#f2c230'))
+  flag.position.set(0.19, 1.45, -0.1)
+  const slot = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.01), mat('#2a1a14'))
+  slot.position.set(0, 1.28, 0.252)
+  g.add(post, box, lid, flag, slot)
+  g.position.set(x, heightAt(x, z), z)
+  g.rotation.y = rotY
+  addCircle(x, z, 0.2)
+  return shadowed(g)
+}

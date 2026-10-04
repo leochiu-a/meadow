@@ -3,8 +3,10 @@
 // (wood grain, rust). Keeps props from reading as fresh plastic.
 //
 // kind: 'paint' (default), 'wood', 'metal', 'concrete' (rain streaks running down walls).
-// grime and fade scale the effect.
-export function weathered(material, { kind = 'paint', grime = 1, fade = 0.15 } = {}) {
+// grime and fade scale the effect. flood (metres, 0 = none) leaves the marks of floodwater
+// on vertical faces: silt-stained below, a dark tide line where the water stood longest,
+// and a fainter one from an earlier, lower flood.
+export function weathered(material, { kind = 'paint', grime = 1, fade = 0.15, flood = 0 } = {}) {
   if (kind !== 'metal') material.roughness = Math.max(material.roughness, 0.88)
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
@@ -76,6 +78,26 @@ export function weathered(material, { kind = 'paint', grime = 1, fade = 0.15 } =
           c = mix(c, vec3(0.32, 0.15, 0.07) * (0.7 + 0.6 * fine), rust * 0.8);`
               : ''
           }
+          ${
+            flood
+              ? `{
+            float vert = 1.0 - abs(vWNrm.y);
+            float wobble = (wNoise(vec3(vWPos.x * 0.6, 0.0, vWPos.z * 0.6)) - 0.5) * 0.14;
+            float top = ${flood.toFixed(2)} + wobble;
+            float below = 1.0 - smoothstep(top - 0.04, top + 0.01, vWPos.y);
+            // Dried silt films everything below, pale on dark walls and dull on light ones.
+            c = mix(c, vec3(0.55, 0.5, 0.4) * (0.8 + 0.35 * fine), below * 0.42 * vert);
+            float tide = smoothstep(top - 0.07, top - 0.01, vWPos.y) - smoothstep(top - 0.01, top + 0.02, vWPos.y);
+            c = mix(c, vec3(0.2, 0.15, 0.1), tide * 0.85 * vert);
+            float low = ${(flood * 0.55).toFixed(2)} + wobble * 0.7;
+            float tide2 = smoothstep(low - 0.05, low - 0.01, vWPos.y) - smoothstep(low - 0.01, low + 0.015, vWPos.y);
+            c = mix(c, vec3(0.3, 0.25, 0.18), tide2 * 0.4 * vert);
+            // Silt dried in streaks that ran down from the tide line.
+            float drip = wNoise(vec3((vWPos.x + vWPos.z) * 7.0, vWPos.y * 0.5, 0.0));
+            c *= 1.0 - smoothstep(0.7, 0.9, drip) * below * 0.18 * vert;
+          }`
+              : ''
+          }
           wBump += fine * 0.004 + stain * 0.003;
           diffuseColor.rgb = c;
         }`,
@@ -95,6 +117,6 @@ export function weathered(material, { kind = 'paint', grime = 1, fade = 0.15 } =
         }`,
       )
   }
-  material.customProgramCacheKey = () => `weathered-${kind}-${grime}-${fade}`
+  material.customProgramCacheKey = () => `weathered-${kind}-${grime}-${fade}-${flood}`
   return material
 }

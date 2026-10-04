@@ -17,11 +17,14 @@ export const ARCADE = 3
 
 const materials = new Map()
 // Shared, weathered, cut-away materials keyed by colour and kind.
+// How high the great flood of 2052 stood in the streets: every surface below it is marked.
+export const FLOOD_LINE = 1.55
+
 export function cityMat(color, { kind = 'concrete', grime = 1, fade = 0.2, ...extra } = {}) {
   const key = `${color}-${kind}-${grime}-${fade}-${JSON.stringify(extra)}`
   if (!materials.has(key)) {
     const m = new THREE.MeshStandardMaterial({ color, roughness: 0.9, ...extra })
-    materials.set(key, withCutaway(extra.emissive ? m : weathered(m, { kind, grime, fade })))
+    materials.set(key, withCutaway(extra.emissive ? m : weathered(m, { kind, grime, fade, flood: FLOOD_LINE })))
   }
   return materials.get(key)
 }
