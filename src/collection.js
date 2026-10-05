@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { relicModel } from './relics.js'
+import { text } from './i18n.js'
 
 // Scavenging HUD in the minimap's game style: a radar pill at the top (signal bars and the
 // count; click it or press B for the book), a card that pops up for each find, and the
@@ -41,7 +42,7 @@ export function createCollectionUI(defs, found) {
   const pics = portraits(defs)
   const radar = document.createElement('button')
   radar.id = 'radar'
-  radar.title = '拾荒雷達・點一下或按 B 打開圖鑑'
+  radar.title = text.collection.radar
   radar.innerHTML = `<span class="dish">📡</span><span class="bars">${'<i></i>'.repeat(5)}</span><span class="count"></span>`
   document.body.appendChild(radar)
   const bars = [...radar.querySelectorAll('.bars i')]
@@ -54,7 +55,7 @@ export function createCollectionUI(defs, found) {
 
   const book = document.createElement('div')
   book.id = 'book'
-  book.innerHTML = '<div class="page"><div class="ribbon">記憶碎片</div><div class="grid"></div><div class="detail"></div><button class="close" aria-label="關閉">×</button></div>'
+  book.innerHTML = `<div class="page"><div class="ribbon">${text.collection.book}</div><div class="grid"></div><div class="detail"></div><button class="close" aria-label="${text.collection.close}">×</button></div>`
   document.body.appendChild(book)
   const grid = book.querySelector('.grid')
   const detail = book.querySelector('.detail')
@@ -62,7 +63,7 @@ export function createCollectionUI(defs, found) {
   const show = (def) => {
     detail.innerHTML = found.has(def.id)
       ? `<img src="${pics[def.id]}" alt=""><div><small>${def.date}</small><b>${def.name}</b><p>${def.story}</p></div>`
-      : `<img class="unknown" src="${pics[def.id]}" alt=""><div><b>？？？</b><p>線索：${def.hint}</p></div>`
+      : `<img class="unknown" src="${pics[def.id]}" alt=""><div><b>${text.collection.unknown}</b><p>${text.collection.clue(def.hint)}</p></div>`
   }
   function render() {
     count.textContent = `${found.size} / ${defs.length}`
@@ -71,11 +72,11 @@ export function createCollectionUI(defs, found) {
       const have = found.has(def.id)
       const slot = document.createElement('button')
       slot.className = have ? 'slot' : 'slot missing'
-      slot.innerHTML = `<img src="${pics[def.id]}" alt=""><span>${have ? def.name : '？？？'}</span><small>${have ? def.date : ''}</small>`
+      slot.innerHTML = `<img src="${pics[def.id]}" alt=""><span>${have ? def.name : text.collection.unknown}</span><small>${have ? def.date : ''}</small>`
       slot.addEventListener('click', () => show(def))
       grid.appendChild(slot)
     }
-    detail.innerHTML = '<p class="lead">照時間排列的記憶碎片。點一格看看，還沒找到的會給你線索。</p>'
+    detail.innerHTML = `<p class="lead">${text.collection.lead}</p>`
   }
   render()
 
@@ -110,7 +111,7 @@ export function createCollectionUI(defs, found) {
     collected(def) {
       render()
       const done = found.size === defs.length
-      toast.innerHTML = `<img src="${pics[def.id]}" alt=""><div><small>${done ? '記憶全部找回' : '找回一段記憶'}・${found.size} / ${defs.length}・${def.date}</small><b>${def.name}</b><p>${def.story}</p></div>`
+      toast.innerHTML = `<img src="${pics[def.id]}" alt=""><div><small>${done ? text.collection.allFound : text.collection.found}・${found.size} / ${defs.length}・${def.date}</small><b>${def.name}</b><p>${def.story}</p></div>`
       toast.classList.add('show')
       clearTimeout(toastTimer)
       toastTimer = setTimeout(() => toast.classList.remove('show'), 6500)

@@ -13,6 +13,12 @@ import { createScavenge } from './scavenge.js'
 import { createCollectionUI } from './collection.js'
 import { createStory } from './story.js'
 import { loading, loaded, within } from './loading.js'
+import { lang, text, setLang } from './i18n.js'
+
+// The page's own chrome, in the player's language.
+document.getElementById('hint').textContent = text.hint
+document.getElementById('sound').setAttribute('aria-label', text.sound)
+document.getElementById('loading').setAttribute('aria-label', text.loading.aria)
 
 const renderer = new THREE.WebGLRenderer({ powerPreference: 'high-performance', antialias: false, stencil: false })
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
@@ -58,7 +64,7 @@ sun.shadow.intensity = 0.72
 scene.add(sun, sun.target)
 
 const world = await def.build(scene, within(0.1, 0.75))
-await loading(0.75, '啟動機器人…')
+await loading(0.75, text.loading.robot)
 const robot = createRobot(...def.start, def.tour, world.nav)
 scene.add(robot.object)
 
@@ -77,7 +83,7 @@ const story = createStory(sceneName, world.story, {
   allFound: () => scavenge.found.size === scavenge.defs.length,
   goTo: (name) => (location.search = `?scene=${name}`),
 })
-await loading(0.77, '準備鏡頭…')
+await loading(0.77, text.loading.camera)
 const { composer, ao, setRain } = createComposer(renderer, scene, camera)
 
 // Weather: wet surfaces reflect an overcast sky, as strongly as they are wet.
@@ -105,12 +111,12 @@ const startAudio = () => {
 addEventListener('pointerdown', startAudio, { once: true })
 addEventListener('keydown', startAudio, { once: true })
 // Scenes built from map data carry its attribution.
-if (def.attribution) document.getElementById('credit').innerHTML = `地圖資料 <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">${def.attribution}</a>`
+if (def.attribution) document.getElementById('credit').innerHTML = `${text.credit} <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">${def.attribution}</a>`
 
 // Switching scenes reloads the page: each scene owns the terrain and colliders it builds.
 const sceneButton = document.getElementById('scene')
 const other = sceneName === 'meadow' ? 'ximending' : 'meadow'
-sceneButton.textContent = `前往${SCENES[other].title}`
+sceneButton.textContent = text.goTo(text.scenes[other])
 sceneButton.addEventListener('pointerdown', (e) => {
   e.stopPropagation()
   location.search = `?scene=${other}`
@@ -118,6 +124,14 @@ sceneButton.addEventListener('pointerdown', (e) => {
 soundButton.addEventListener('pointerdown', (e) => {
   e.stopPropagation()
   soundButton.textContent = audio.toggle() ? '🔊' : '🔇'
+})
+// Switching language reloads too, back into the same scene.
+const langButton = document.getElementById('lang')
+langButton.textContent = text.langButton
+langButton.setAttribute('aria-label', text.langLabel)
+langButton.addEventListener('pointerdown', (e) => {
+  e.stopPropagation()
+  setLang(lang === 'zh' ? 'en' : 'zh')
 })
 
 // Drag to orbit the camera; a plain click on the ground sends the robot there.
@@ -167,9 +181,9 @@ addEventListener('blur', pause)
 addEventListener('focus', run)
 
 // Compile every shader before the first frame, so the scene appears whole instead of stalling.
-await loading(0.78, '編譯著色器…')
+await loading(0.78, text.loading.shaders)
 await renderer.compileAsync(scene, camera)
-await loading(0.88, '點亮畫面…')
+await loading(0.88, text.loading.light)
 composer.render(0)
 loaded()
 run()

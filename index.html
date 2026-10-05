@@ -12,14 +12,17 @@
       html, body { margin: 0; height: 100%; overflow: hidden; background: #c9d6a3; }
       canvas { display: block; }
       #hint {
-        position: fixed; left: 16px; bottom: 16px;
+        position: fixed; left: 16px; bottom: 16px; max-width: calc(100vw - 420px); box-sizing: border-box;
         font: 13px/1.5 system-ui, sans-serif; color: #fff;
         background: rgba(30, 40, 20, 0.45); padding: 8px 12px; border-radius: 8px;
         pointer-events: none; backdrop-filter: blur(4px); transition: opacity 0.6s;
       }
       #hint.dim { opacity: 0.55; }
-      #scene {
-        position: fixed; right: 72px; bottom: 16px; height: 44px; padding: 0 16px;
+      #hint:empty { display: none; }
+      /* Bottom-right controls: language, scene and sound. */
+      #controls { position: fixed; right: 16px; bottom: 16px; display: flex; gap: 12px; }
+      #scene, #lang {
+        height: 44px; padding: 0 16px;
         font: 14px system-ui, sans-serif; border: 0; border-radius: 22px; cursor: pointer;
         background: rgba(30, 40, 20, 0.45); color: #fff; backdrop-filter: blur(4px);
       }
@@ -131,7 +134,12 @@
       @keyframes storyIn { from { opacity: 0; transform: translateY(6px); } }
       @keyframes storyBlink { 50% { opacity: 0.4; } }
       /* Narrow screens: the radar and its card drop below the minimap's corner. */
+      /* Mid-width screens: the hint sits above the bottom-right controls instead of under them. */
+      @media (max-width: 900px) {
+        #hint { bottom: 72px; max-width: calc(100vw - 32px); }
+      }
       @media (max-width: 640px) {
+        #hint { display: none; }
         #radar { top: auto; bottom: 76px; }
         #toast { top: auto; bottom: 122px; }
       }
@@ -160,23 +168,27 @@
       }
       @keyframes loadingShine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
       #loading .label { color: rgba(255, 246, 226, 0.7); }
+      #lang { min-width: 44px; padding: 0 12px; font-weight: 700; }
       #sound {
-        position: fixed; right: 16px; bottom: 16px; width: 44px; height: 44px;
+        width: 44px; height: 44px;
         font-size: 20px; border: 0; border-radius: 50%; cursor: pointer;
         background: rgba(30, 40, 20, 0.45); color: #fff; backdrop-filter: blur(4px);
       }
     </style>
   </head>
   <body>
-    <div id="hint">點一下開啟聲音・WASD / 方向鍵移動・點地面或地圖前往・拖曳 / Q E 轉視角・滾輪縮放・R 下雨・B 圖鑑・M 開關地圖・閒置 4 秒自動巡遊</div>
+    <div id="hint"></div>
     <div id="credit"></div>
-    <button id="scene"></button>
-    <button id="sound" aria-label="切換聲音">🔈</button>
-    <div id="loading" role="progressbar" aria-label="載入中">
+    <div id="controls">
+      <button id="lang"></button>
+      <button id="scene"></button>
+      <button id="sound">🔈</button>
+    </div>
+    <div id="loading" role="progressbar">
       <div class="box">
         <div class="title">MEADOW BOT</div>
         <div class="bar"><i style="width: 5%"></i></div>
-        <div class="label">載入程式…</div>
+        <div class="label"></div>
       </div>
     </div>
     <script type="module" src="/src/main.js"></script>

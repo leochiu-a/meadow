@@ -1,3 +1,5 @@
+import { text } from './i18n.js'
+
 // Corner minimap in a game-UI frame: the scene's own plan drawn once into a backing canvas,
 // then each frame the robot's marker with a breathing halo. North is up, as in the scene.
 // Clicking the map sends the robot there; M toggles it.
@@ -34,7 +36,7 @@ export function createMinimap(spec, onPick) {
   canvas.height = h * dpr
   canvas.style.width = `${w}px`
   canvas.style.height = `${h}px`
-  canvas.title = '點地圖讓機器人前往・M 開關地圖'
+  canvas.title = text.minimap.hint
   frame.appendChild(canvas)
   document.body.appendChild(frame)
   const ctx = canvas.getContext('2d')

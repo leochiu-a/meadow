@@ -11,6 +11,7 @@ import { graffiti } from './graffiti.js'
 import { createGrass, createFlowers, createReeds, createTree, createBush } from './vegetation.js'
 import { brickMaterial } from './bricks.js'
 import { withCutaway } from './cutaway.js'
+import { text } from './i18n.js'
 import osm from './data/ximending.json'
 
 // Ruined Ximending, laid out from the real street plan (OpenStreetMap): the district decades
@@ -241,7 +242,7 @@ function rainbowCrossing() {
 const RUINS = (r) => (r < 0.35 ? 'collapsed' : r < 0.85 ? 'shell' : 'none')
 
 async function build(scene, progress) {
-  await progress(0, '鋪設街道…')
+  await progress(0, text.loading.city.roads)
   setTerrain(cityTerrain)
   const rainbow = rainbowCrossing()
   const { mesh, cracks, groundAt, overgrownAt } = createCityGround(data, { wild: reclaimed, rainbow })
@@ -267,7 +268,7 @@ async function build(scene, progress) {
   for (const [x, z] of rectSamples(towerBase[0] + (tdx * towerLen) / 2, towerBase[1] + (tdz * towerLen) / 2, tdz, -tdx, 10, towerLen + 10, 30)) taken.mark(x, z)
   const underTower = (pts) => pts.some(([x, z]) => taken.has(x, z))
 
-  await progress(0.02, '蓋起街區…')
+  await progress(0.02, text.loading.city.blocks)
   // Mapped buildings at their real size and height; the Red House keeps its brick.
   // The map draws station entrances as small buildings; the canopy stands there instead.
   // Renamed cinemas for the Wuchang Street fronts, one per qualifying building.
@@ -325,7 +326,7 @@ async function build(scene, progress) {
     taken.polygon(b.pts)
   }
 
-  await progress(0.07, '擺放街景…')
+  await progress(0.07, text.loading.city.street)
   // MRT Ximen exits where and how the map draws them.
   for (const e of data.entrances.filter((e) => e.name?.includes('捷運'))) {
     const exit = exitPlan(e)
@@ -432,7 +433,7 @@ async function build(scene, progress) {
     screens++
   }
 
-  await progress(0.08, '填滿店屋…')
+  await progress(0.08, text.loading.city.shophouses)
   // Shophouses fill the frontage the map, the exits and the screens leave empty.
   alongKerbs(
     () => range(5.5, 8.5),
@@ -474,7 +475,7 @@ async function build(scene, progress) {
     },
   )
 
-  await progress(0.1, '合併模型…')
+  await progress(0.1, text.loading.city.merge)
   scene.add(batchStatic(city), city, flushCityParts())
 
   // --- Nature taking the streets back ---
@@ -483,11 +484,11 @@ async function build(scene, progress) {
   for (const pts of cracks) for (const [x, z] of pts) crackCells.add(cellKey(x, z))
   const bounds = [minX + 1, maxX - 1, minZ + 1, maxZ - 1]
   const area = (maxX - minX) * (maxZ - minZ)
-  const grow = (f) => progress(0.14 + 0.46 * f, '讓植物長回街上…')
+  const grow = (f) => progress(0.14 + 0.46 * f, text.loading.city.grass)
   scene.add(await createGrass({ bounds, target: Math.round(area * 26), place: cityGrass(blocked, groundAt, overgrownAt, crackCells), progress: grow }))
-  await progress(0.87, '開出野花…')
+  await progress(0.87, text.loading.city.flowers)
   scene.add(createFlowers({ bounds, target: Math.round(area * 1.2), place: cityFlowers(blocked, overgrownAt) }))
-  await progress(0.91, '種下樹木…')
+  await progress(0.91, text.loading.city.trees)
   // Trees seeded in the streets themselves, thickest where the street has gone wild, but
   // never crowding the station exits.
   let trees = 0
@@ -509,7 +510,7 @@ async function build(scene, progress) {
   scene.add(dust())
 
   // Every collider is in place now: plan routes on them, and draw the minimap from them.
-  await progress(0.99, '規劃路線…')
+  await progress(0.99, text.loading.routes)
   const nav = createNavGrid(data.bounds)
   const { animals, events } = strays(scene, nav, (x, z) => overgrownAt(x, z) < 0.45)
   const relics = relicSpots(nav)
@@ -526,7 +527,7 @@ async function build(scene, progress) {
     relics,
     story: { finale },
     nav,
-    minimap: { bounds: data.bounds, title: '西門町', draw: (ctx, px) => drawPlan(ctx, px, nav) } }
+    minimap: { bounds: data.bounds, title: text.minimap.ximending, draw: (ctx, px) => drawPlan(ctx, px, nav) } }
 }
 
 // Nearest point on a named street's centreline, with the unit normal pointing from the
@@ -945,7 +946,6 @@ for (const [street, from, to, north = 0] of LEGS) {
 
 // Dusty, hazy afternoon light over a dead city.
 export default {
-  title: '廢土西門町',
   look: {
     background: '#c8bfa6',
     fog: ['#bfb59b', 32, 66],

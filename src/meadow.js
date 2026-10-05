@@ -8,6 +8,7 @@ import * as props from './props.js'
 import { createGrass, createFlowers, createReeds, createLupines, createIvy, createTree, createSapling, createBush } from './vegetation.js'
 import { createCow, createChicken, createFox, createVillager } from './animals.js'
 import { graffitiOnWall } from './graffiti.js'
+import { text } from './i18n.js'
 
 // Where grass grows and how tall: thin on the path, creeping into the plaza from its
 // edges, lumpy clumps everywhere else, taller on the dry field.
@@ -54,7 +55,7 @@ function meadowFlowers(blocked) {
 }
 
 async function build(scene, progress) {
-  await progress(0, '鋪設草原…')
+  await progress(0, text.loading.meadow.ground)
   setTerrain(meadowTerrain)
   const updaters = []
   scene.add(createGround())
@@ -174,10 +175,10 @@ async function build(scene, progress) {
 
   scene.add(flushBricks())
 
-  await progress(0.3, '讓植物長出來…')
+  await progress(0.3, text.loading.meadow.grass)
   // --- Foliage last, so it can avoid every prop's footprint ---
   const blocked = buildBlockers()
-  const grow = (f) => progress(0.3 + 0.45 * f, '讓植物長出來…')
+  const grow = (f) => progress(0.3 + 0.45 * f, text.loading.meadow.grass)
   scene.add(await createGrass({ bounds: [-46, 46, -40, 42], target: 200000, place: meadowGrass(blocked), progress: grow }))
   scene.add(props.litter(blocked, { minX: PLAZA.minX - 4, maxX: PLAZA.maxX + 4, minZ: PLAZA.minZ, maxZ: PLAZA.maxZ + 6 }))
   scene.add(createFlowers({ bounds: [-44, 44, -38, 40], target: 70000, place: meadowFlowers(blocked) }))
@@ -204,7 +205,7 @@ async function build(scene, progress) {
     ]),
   )
 
-  await progress(0.97, '規劃路線…')
+  await progress(0.97, text.loading.routes)
   // Routes for the robot, planned around everything placed above.
   const nav = createNavGrid({ minX: -46, maxX: 46, minZ: -40, maxZ: 42 })
   return {
@@ -236,7 +237,6 @@ const MAILBOX = [0.9, -24.4]
 
 // Sunny overgrown village: warm low sun, green-tinted shade, a grassy horizon.
 export default {
-  title: '草原',
   look: {
     background: '#8fbf4a',
     fog: ['#a9cc62', 55, 130],

@@ -6,49 +6,10 @@
 // Progress lives in this browser. Lines play in a full-screen log: click, Space or Enter
 // for the next line, Esc to skip to the end.
 
-const KEY = 'meadow-bot:story'
+import { text } from './i18n.js'
 
-const SCRIPTS = {
-  wake: [
-    { sys: 'DLV-06 外送機器人' },
-    { sys: '系統重新啟動……' },
-    { sys: '待機時間：31 年 2 個月' },
-    { sys: '目前位置：西門町・峨眉街' },
-    { sys: '城市網路：無回應' },
-    { sys: '最後一筆訂單：未送達', warn: true },
-    { line: '記憶模組受損。附近的東西，也許能讓它想起發生了什麼。' },
-  ],
-  remembered: [
-    { sys: '記憶重建完成' },
-    { line: '2054 年 4 月 30 日，最後一班捷運開走的那天晚上。' },
-    { line: '阿聲來不及趕到，請它把一封信送去六號出口，交給等在那裡的小麥。' },
-    { line: '它還在半路上，城市就斷電了。' },
-    { sys: '訂單目的地：捷運西門站 6 號出口', warn: true },
-  ],
-  exit6: [
-    { sys: '抵達：捷運西門站 6 號出口' },
-    { sys: '收件人：小麥 —— 不在現場' },
-    { sys: '已逾時：31 年' },
-    { line: '貨箱裡是一封信。' },
-    { letter: '小麥：\n對不起，沒趕上最後一班車。\n等店裡收好，我就上山去找你。\n到時候，再一起聽那首歌。\n—— 阿聲' },
-    { sys: '查詢收件人新地址……' },
-    { sys: '綠洲遷居計畫・第一期安置地：草原村' },
-    { sys: '重新規劃路線　距離 38 公里' },
-    { line: '它轉過身，往山的方向出發。' },
-  ],
-  village: [
-    { sys: '抵達：草原村' },
-    { sys: '訂單狀態：配送中' },
-    { line: '村子裡飄著一段熟悉的旋律。收件地址就在廣場邊的小屋。' },
-  ],
-  delivered: [
-    { sys: '送達：小麥 收' },
-    { line: '門口的花開得很好。屋裡傳出那段旋律，是音樂盒。' },
-    { line: '信輕輕落進信箱。三十一年，總算送到了。' },
-    { sys: '訂單狀態：已送達 ✓', warn: true },
-    { sys: 'DLV-06：感謝您的耐心等候。' },
-  ],
-}
+const KEY = 'meadow-bot:story'
+const SCRIPTS = text.story
 
 function load() {
   try {
@@ -74,7 +35,7 @@ export function createStory(sceneName, spots = {}, { allFound, goTo }) {
 
   const overlay = document.createElement('div')
   overlay.id = 'story'
-  overlay.innerHTML = '<div class="log"></div><div class="next">點一下繼續 ▸</div>'
+  overlay.innerHTML = '<div class="log"></div><div class="next"></div>'
   document.body.appendChild(overlay)
   const log = overlay.querySelector('.log')
   const next = overlay.querySelector('.next')
@@ -94,7 +55,7 @@ export function createStory(sceneName, spots = {}, { allFound, goTo }) {
       el.textContent = s.sys ? `> ${s.sys}` : s.line
     }
     log.appendChild(el)
-    next.textContent = queue.length ? '點一下繼續 ▸' : after?.label ?? '點一下關閉'
+    next.textContent = queue.length ? text.story.next : after?.label ?? text.story.close
   }
   function finish() {
     overlay.classList.remove('open')
@@ -123,8 +84,8 @@ export function createStory(sceneName, spots = {}, { allFound, goTo }) {
 
   // Where the robot is headed, once the story gives it somewhere to go.
   const objective = () => {
-    if (sceneName === 'ximending' && state.remembered && !state.city) return { x: spots.finale[0], z: spots.finale[1], label: '最後一筆訂單' }
-    if (sceneName === 'meadow' && state.city && !state.delivered) return { x: spots.finale[0], z: spots.finale[1], label: '配送中' }
+    if (sceneName === 'ximending' && state.remembered && !state.city) return { x: spots.finale[0], z: spots.finale[1], label: text.story.lastOrder }
+    if (sceneName === 'meadow' && state.city && !state.delivered) return { x: spots.finale[0], z: spots.finale[1], label: text.story.delivering }
     return null
   }
 
@@ -161,7 +122,7 @@ export function createStory(sceneName, spots = {}, { allFound, goTo }) {
       if (sceneName === 'ximending') {
         state.city = true
         save()
-        play('exit6', { label: '前往草原村 ▸', run: () => goTo('meadow') })
+        play('exit6', { label: text.story.toVillage, run: () => goTo('meadow') })
       } else {
         state.delivered = true
         save()

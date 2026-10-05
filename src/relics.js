@@ -1,8 +1,9 @@
 import * as THREE from 'three'
 import { weathered } from './weathering.js'
+import { text } from './i18n.js'
 
-// Relics left behind from before: what each one is, when its memory is from, the memory
-// itself, a hint at where it lies, and its little model. Each scene places them by id (see `relics` in its build).
+// Relics left behind from before: when each memory is from and its little model; the words
+// (name, memory, hint at where it lies) live in the locales. Each scene places them by id (see `relics` in its build).
 // Models are built at display size, roughly half a metre across, so they read in the grass.
 
 const std = (color, opts = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, ...opts })
@@ -246,26 +247,16 @@ const MODELS = {
 
 // In story order: each find is a memory DLV-06 recovers, from the first flood warnings to
 // the night of the last train (see story.js). The meadow's tell of life after the move.
-export const RELICS = {
+const DATES = {
   ximending: [
-    { id: 'ticket', date: '2049.07', name: '電影票根', hint: '電影街的騎樓下', story: '日昇戲院的午夜場。散場時河堤的警報響了，大家笑著說「又來了」，撐著傘去吃宵夜。那年夏天，警報響了九次。' },
-    { id: 'bubbleTea', date: '2050.06', name: '珍奶杯', hint: '漢中街徒步區', story: '半糖少冰。店門口貼了新告示：「因淹水保險調漲，飲品一律加價五元。」杯底還黏著兩顆珍珠。' },
-    { id: 'vinyl', date: '2051.08', name: '黑膠唱片', hint: '武昌街往東', story: '二手唱片行把唱片全搬上二樓，老闆說：「水只會淹到膝蓋，到不了這裡。」這張放在最上層，所以留了下來。' },
-    { id: 'neon', date: '2052.09', name: '霓虹燈管', hint: '峨眉街', story: '白鷺颱風那一夜，淡水河漫過了河堤。峨眉街的招牌一盞一盞熄滅，那是四十年來第一次全暗。水，停在一樓半的高度。' },
-    { id: 'cassette', date: '2052.10', name: '卡帶', hint: '紅樓附近', story: '水退了三週，紅樓前擠滿清淤的志工。有人用收音機錄下大家邊鏟泥邊唱的歌，標籤寫著「西門 MIX ’52」。' },
-    { id: 'sneaker', date: '2053.03', name: '球鞋', hint: '新世界大樓那頭', story: '店重新開張的那一週，政府公布了「綠洲遷居計畫」，西門町列入第一期。這雙鞋只穿過一次。' },
-    { id: 'skateboard', date: '2053.11', name: '滑板', hint: '成都路', story: '搬家前的最後一個週末，大家在紅樓前的廣場溜到天亮。膝蓋上的疤，是這座城留給我的紀念。' },
-    { id: 'noodleBowl', date: '2054.04', name: '麵線碗', hint: '總是排著隊的那個攤子', story: '阿忠麵線最後一天營業，排隊的人比四十年來任何一天都多。老闆說：「山上見，到時候再煮給你們吃。」' },
-    { id: 'card', date: '2054.04', name: '悠悠卡', hint: '六號出口附近', story: '最後一班捷運，4 月 30 日 23:40。卡裡還剩 37 元，再也用不到了。' },
-    { id: 'flipPhone', date: '2054.04', name: '折疊手機', hint: '西寧南路', story: '最後一封簡訊，寄件人小麥：「我在六號出口等你。」還沒送出的回覆：「店裡收不完，我請外送機器人先把信送過去。」' },
+    ['ticket', '2049.07'], ['bubbleTea', '2050.06'], ['vinyl', '2051.08'], ['neon', '2052.09'], ['cassette', '2052.10'],
+    ['sneaker', '2053.03'], ['skateboard', '2053.11'], ['noodleBowl', '2054.04'], ['card', '2054.04'], ['flipPhone', '2054.04'],
   ],
-  meadow: [
-    { id: 'pocketWatch', date: '2054.05', name: '懷錶', hint: '磚拱門下', story: '指針停在 23:40，最後一班捷運開走的時間。從那天起，就再也沒有人替它上過發條。' },
-    { id: 'oldKey', date: '2058', name: '舊鑰匙', hint: '鐵門旁', story: '西門町老家的鑰匙。那扇門早就泡過水了，還是捨不得丟。' },
-    { id: 'tinCar', date: '2066', name: '鐵皮小車', hint: '飼料箱附近', story: '在山上出生的孩子，把城裡帶來的玩具一個個玩到掉漆。他們從來沒見過捷運。' },
-    { id: 'letter', date: '2079', name: '信封', hint: '村子裡的攤子旁', story: '收件人寫著「阿聲」，地址是西門町的舊店。沒有郵差會去那裡了，所以每年寫一封，每年都沒有寄出。' },
-    { id: 'musicBox', date: '2085', name: '音樂盒', hint: '小木屋旁', story: '每天傍晚，村子裡都會飄來這段旋律。原來一直在耳邊的音樂，是有人每天替它轉一次發條。' },
-  ],
+  meadow: [['pocketWatch', '2054.05'], ['oldKey', '2058'], ['tinCar', '2066'], ['letter', '2079'], ['musicBox', '2085']],
 }
+// Each relic's name, the book's clue to where it lies, and its memory, in the player's language.
+export const RELICS = Object.fromEntries(
+  Object.entries(DATES).map(([scene, list]) => [scene, list.map(([id, date]) => ({ id, date, ...text.relics[id] }))]),
+)
 
 export const relicModel = (id) => MODELS[id]()
