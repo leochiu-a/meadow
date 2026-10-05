@@ -61,7 +61,7 @@ npm run dev
 node scripts/fetch-ximending.ts
 ```
 
-地圖資料 © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright)，以 ODbL 授權。
+地圖資料 © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright)，以 ODbL 授權。遊戲裡的標示在廢土西門町的設定面板最下方（依 OSM 標示指引，遊戲可放在選單或製作名單）。
 
 ## 結構
 

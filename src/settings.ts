@@ -42,8 +42,9 @@ export function loadLevels(): Levels {
   }
 }
 
-// onLanguage(code) switches the game's language (it reloads the page).
-export function createSettings(audio: SoundTarget, levels: Levels, onLanguage: (code: Lang) => void) {
+// credit: the scene's map data attribution, if it has one. onLanguage(code) switches the
+// game's language (it reloads the page).
+export function createSettings(audio: SoundTarget, levels: Levels, credit: string | undefined, onLanguage: (code: Lang) => void) {
   const button = document.createElement('button')
   button.id = 'settings-button'
   button.append(createElement(Settings))
@@ -119,6 +120,12 @@ export function createSettings(audio: SoundTarget, levels: Levels, onLanguage: (
     } catch {}
   })
   panel.appendChild(reset)
+  if (credit) {
+    const line = document.createElement('p')
+    line.className = 'credit'
+    line.innerHTML = `${text.credit} <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">${credit}</a>`
+    panel.appendChild(line)
+  }
   document.body.appendChild(panel)
 
   const toggle = (open = !panel.classList.contains('open')) => {

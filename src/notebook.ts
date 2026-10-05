@@ -203,8 +203,14 @@ export function createNotebook({ relics, echoes, found, heard, shown, released, 
       render()
       toast.innerHTML = `<img src="${pics[def.id]}" alt=""><div><small>${text.notebook.found}${def.when ? `・${label(def.when)}` : ''}</small><b>${def.name}</b><p>${def.story}</p></div>`
       toast.classList.add('show')
+      // The robot's system lines make room under the card while it shows.
+      const room = (px: number) => document.documentElement.style.setProperty('--toast-h', `${px}px`)
+      room(toast.offsetHeight + 12)
       clearTimeout(toastTimer)
-      toastTimer = setTimeout(() => toast.classList.remove('show'), 6500)
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('show')
+        room(0)
+      }, 6500)
     },
     refresh: render,
   }

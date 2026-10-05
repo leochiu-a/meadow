@@ -170,7 +170,8 @@ const minimap = world.minimap ? createMinimap(world.minimap, (x, z) => robot.goT
 // Browsers only allow audio after a user gesture, so the soundscape starts on first input.
 useAudio(audio)
 // Switching language reloads into the same place: back into play, or to the title menu.
-const settings = createSettings(audio, levels, (code) => {
+// Scenes built from map data credit it at the foot of the panel.
+const settings = createSettings(audio, levels, def.attribution, (code) => {
   if (!titled) reenter()
   setLang(code)
 })
@@ -181,8 +182,6 @@ const startAudio = () => {
 }
 addEventListener('pointerdown', startAudio, { once: true })
 addEventListener('keydown', startAudio, { once: true })
-// Scenes built from map data carry its attribution.
-if (def.attribution) byId('credit').innerHTML = `${text.credit} <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">${def.attribution}</a>`
 
 // Switching scenes reloads the page: each scene owns the terrain and colliders it builds.
 const sceneButton = byId('scene')
