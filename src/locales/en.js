@@ -2,7 +2,7 @@ export default {
   htmlLang: 'en',
   langButton: '中',
   langLabel: '切換為中文',
-  hint: 'Click to turn on sound · WASD / arrow keys to move · click the ground or map to go there · drag / Q E to turn · scroll to zoom · R rain · B timeline · M map · idle 4 s to auto-tour',
+  hint: 'Click to turn on sound · WASD / arrow keys to move · click the ground or map to go there · drag / Q E to turn · scroll to zoom · R rain · B log · M map · idle 4 s to auto-tour',
   sound: 'Toggle sound',
   mixer: { title: 'Sound', master: 'Master', music: 'Music', ambience: 'Ambience', weather: 'Weather', animals: 'Animals', robot: 'Robot', voice: 'Robot voice', echo: 'Story', ui: 'Interface', reset: 'Reset to default' },
   goTo: (scene) => `Go to ${scene}`,
@@ -21,21 +21,21 @@ export default {
     light: 'Lighting the scene…',
   },
 
-  timeline: {
-    radar: 'Radar · click or press B to open the timeline',
-    title: 'Timeline',
+  notebook: {
+    radar: 'Radar · click or press B to open the log',
+    title: 'Log',
     close: 'Close',
     unknown: '???',
     clue: (hint) => `Clue: ${hint}`,
     area: (place) => `Somewhere around: ${place}`,
-    lead: 'What you have found and what you have heard, in the order it happened. Tap a slot.',
+    lead: 'What you have found and what you have heard, in the order you came across it. Tap a slot.',
     found: 'Found something',
     replay: 'Play again',
     released: 'This sound has been let go.',
-    groups: { before: '2049 — 2054', night: '2054.04.30', after: 'Afterwards' },
+    sections: { things: 'Things found', sounds: 'Sounds heard' },
   },
 
-  echo: { detected: 'Abnormal audio detected……', saved: 'Saved to timeline' },
+  echo: { detected: 'Abnormal audio detected……', saved: 'Saved to log' },
 
   // What DLV-06's transcript makes of each recording (see echoes.js for when each line shows).
   echoes: {

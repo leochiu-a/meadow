@@ -12,7 +12,7 @@ import { createOrbit } from './orbit.js'
 import { createWeather, createRain, applyWet, overcastEnvironment } from './weather.js'
 import { createScavenge, foundIn } from './scavenge.js'
 import { RELICS } from './relics.js'
-import { createTimeline } from './timeline.js'
+import { createNotebook } from './notebook.js'
 import { createStory } from './story.js'
 import { ECHOES, createEchoes } from './echoes.js'
 import { createRoutine } from './routine.js'
@@ -78,13 +78,13 @@ await loading(0.75, text.loading.robot)
 const robot = createRobot(...def.start, def.tour, world.nav)
 scene.add(robot.object)
 
-// The story's pieces: relics to find and recordings to hear, a timeline to keep them on,
+// The story's pieces: relics to find and recordings to hear, a log to keep them in,
 // the robot's daily routine, its dog, and the small unfinished things. Audio only exists
 // once the page has been clicked, so they reach it through `audio` when they play.
 let audio = null
 const scavenge = createScavenge(scene, sceneName, world.relics, {
   onCollect: (def) => {
-    timeline.collected(def)
+    notebook.collected(def)
     audio.chime()
     story.collected()
   },
@@ -106,19 +106,17 @@ const echoes = createEchoes({ echo: (id, where) => audio.echo(id, { ...where, ri
   onStart: (def, spot) => companion.heard(def, spot),
   onHeard: (def, heard) => {
     story.heard(def, heard)
-    timeline.refresh()
+    notebook.refresh()
   },
 })
-const timeline = createTimeline({
+const notebook = createNotebook({
   relics: [...RELICS.ximending, ...RELICS.meadow],
   echoes: ECHOES,
-  has: (e) => (e.kind === 'relic' ? found[e.scene].has(e.id) : echoes.heard.has(e.id)),
-  // The village's things only once the robot is on its way there, and the last night only
-  // once its recordings can be read (or something from it has turned up).
-  shown: (e) =>
-    e.kind === 'echo'
-      ? story.open(e)
-      : found[e.scene].has(e.id) || ((e.scene === sceneName || story.city) && (!e.when?.startsWith('2054-04-30') || story.open({ act: 2 }))),
+  // The order things turned up in: the city's finds came before the village's.
+  found: () => [...found.ximending, ...found.meadow],
+  heard: () => [...echoes.heard],
+  // The village's things only once the robot is on its way there; recordings once their act has begun.
+  shown: (e) => (e.kind === 'echo' ? story.open(e) : found[e.scene].has(e.id) || e.scene === sceneName || story.city),
   released: () => story.released,
   onReplay: (id) => echoes.replay(id),
 })
@@ -254,9 +252,9 @@ function step(dt) {
   scavenge.update(t, dt, robot.position, !robot.touring, goal, echoes.beacons(), radar)
   echoes.update(robot.position, story.playing)
   story.update(robot.position, !robot.touring)
-  timeline.setRadar(radar)
-  timeline.setSignal(scavenge.signal)
-  timeline.setObjective(goal?.label)
+  notebook.setRadar(radar)
+  notebook.setSignal(scavenge.signal)
+  notebook.setObjective(goal?.label)
   world.update(t, dt, robot.position)
   routine?.update(dt, { speed: robot.speed, rain: weather.rain, events: world.events })
   companion.update(t, dt, busy)

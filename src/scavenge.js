@@ -18,7 +18,7 @@ function load(sceneName) {
   }
 }
 
-// What has been found in a scene, read fresh (the timeline shows both scenes' finds).
+// What has been found in a scene, read fresh (the log shows both scenes' finds).
 export const foundIn = (sceneName) => load(sceneName)
 
 function save(sceneName, found) {

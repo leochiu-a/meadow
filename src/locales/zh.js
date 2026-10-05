@@ -2,7 +2,7 @@ export default {
   htmlLang: 'zh-Hant',
   langButton: 'EN',
   langLabel: 'Switch to English',
-  hint: '點一下開啟聲音・WASD / 方向鍵移動・點地面或地圖前往・拖曳 / Q E 轉視角・滾輪縮放・R 下雨・B 時間線・M 開關地圖・閒置 4 秒自動巡遊',
+  hint: '點一下開啟聲音・WASD / 方向鍵移動・點地面或地圖前往・拖曳 / Q E 轉視角・滾輪縮放・R 下雨・B 紀錄・M 開關地圖・閒置 4 秒自動巡遊',
   sound: '切換聲音',
   mixer: { title: '音量', master: '總音量', music: '音樂', ambience: '環境', weather: '天氣', animals: '動物', robot: '機器人', voice: '機器人語音', echo: '故事', ui: '提示音', reset: '恢復預設' },
   goTo: (scene) => `前往${scene}`,
@@ -21,21 +21,21 @@ export default {
     light: '點亮畫面…',
   },
 
-  timeline: {
-    radar: '雷達・點一下或按 B 打開時間線',
-    title: '時間線',
+  notebook: {
+    radar: '雷達・點一下或按 B 打開紀錄',
+    title: '紀錄',
     close: '關閉',
     unknown: '？？？',
     clue: (hint) => `線索：${hint}`,
     area: (place) => `大約在：${place}`,
-    lead: '找到的東西和聽到的聲音，照時間排好。點一格看看。',
+    lead: '找到的東西和聽到的聲音，照遇到的先後記下來。點一格看看。',
     found: '找到一件東西',
     replay: '重聽',
     released: '這段聲音已經送走了。',
-    groups: { before: '2049 — 2054', night: '2054.04.30', after: '之後' },
+    sections: { things: '找到的東西', sounds: '聽到的聲音' },
   },
 
-  echo: { detected: '偵測到異常音訊……', saved: '已存入時間線' },
+  echo: { detected: '偵測到異常音訊……', saved: '已存入紀錄' },
 
   // What DLV-06's transcript makes of each recording (see echoes.js for when each line shows).
   echoes: {

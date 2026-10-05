@@ -3,7 +3,7 @@ import { text } from './i18n.js'
 // DLV-06's audio buffer: fourteen recordings of the street from before the city emptied,
 // each only decodable where it was recorded. Drive (or patrol) past a spot whose act is
 // open and it plays: the mix ducks, a sound with nothing visible making it, and the robot's
-// transcript underneath. What was heard is kept in this browser; the timeline replays it.
+// transcript underneath. What was heard is kept in this browser; the log replays it.
 // `cues` are the seconds into the recording each transcript line appears (see the locales).
 // `after`: only decodable once that one has been heard (her steps follow his call).
 
@@ -110,7 +110,7 @@ export function createEchoes(audio, spots = {}, { isOpen, onStart, onHeard }) {
         if (Math.hypot(robot.x - spot.x, robot.z - spot.z) < RADIUS) return start(def, spot)
       }
     },
-    // Hears recording `id` again, from the timeline (or played to someone at the end).
+    // Hears recording `id` again, from the log (or played to someone at the end).
     async replay(id) {
       if (playing) return
       const def = ECHOES.find((d) => d.id === id)

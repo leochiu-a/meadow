@@ -245,7 +245,7 @@ const MODELS = {
   },
 }
 
-// When each relic is from, for its place on the timeline: a date, a minute on the night of
+// When each relic is from, as its card in the log gives it: a date, a minute on the night of
 // the last train, or null for the village's things from the years after.
 const DATES = {
   ximending: [

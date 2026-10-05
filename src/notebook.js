@@ -3,11 +3,11 @@ import { createElement, Radar, Package, AudioWaveform, Play } from 'lucide'
 import { relicModel } from './relics.js'
 import { text } from './i18n.js'
 
-// The timeline, in the minimap's game style: a radar pill at the top (signal bars and the
-// count; click it or press B to open), a card that pops up for each find, and the timeline
-// itself — relics and recordings in the order they happened: the years before, the night of
-// the last train minute by minute, and the years after. It only puts things in order: no
-// links, no notes. What is missing shows as ??:?? with where to look.
+// The log, in the minimap's game style: a radar pill at the top (signal bars and the count;
+// click it or press B to open), a card that pops up for each find, and the log itself —
+// things found and sounds heard, in the order DLV-06 came across them. It never puts them in
+// the order they happened: every card carries its own date, and lining them up is the
+// player's to do. What is still missing waits at the end, with where to look.
 
 // Little portraits of each relic, rendered once on a throwaway renderer.
 function portraits(relics) {
@@ -41,25 +41,35 @@ function portraits(relics) {
   return out
 }
 
-const NIGHT = '2054-04-30'
-const label = (when) => (!when ? '' : when.startsWith(NIGHT) ? when.slice(11) : when.replaceAll('-', '.'))
-// What a slot not found yet shows for its time: a minute on the last night, a year before.
-const unknownTime = (when) => (!when ? '' : when.startsWith(NIGHT) ? '??:??' : '????')
+const label = (when) => when?.replaceAll('-', '.') ?? ''
 const wave = () => createElement(AudioWaveform).outerHTML
+const collator = new Intl.Collator(text.htmlLang)
 
 /**
- * relics: every relic, both scenes. echoes: every recording (see echoes.js). has(entry):
- * found or heard. shown(entry): on the timeline yet. released(): the recordings were let go,
- * so they no longer replay. onReplay(id) to hear one again.
+ * relics: every relic, both scenes. echoes: every recording (see echoes.js). found(): the
+ * ids of relics found and heard(): of recordings heard, each in the order it happened to the
+ * robot. shown(entry): in the log yet (found, or still to be found). released(): the
+ * recordings were let go, so they no longer replay. onReplay(id) to hear one again.
  */
-export function createTimeline({ relics, echoes, has, shown, released, onReplay }) {
+export function createNotebook({ relics, echoes, found, heard, shown, released, onReplay }) {
   const pics = portraits(relics)
-  const entries = [...relics.map((r) => ({ ...r, kind: 'relic' })), ...echoes.map((e) => ({ ...e, kind: 'echo' }))]
-  const sorted = () => entries.filter(shown).sort((a, b) => (a.when ?? '9999').localeCompare(b.when ?? '9999'))
+  const sections = [
+    { key: 'things', all: relics.map((r) => ({ ...r, kind: 'relic' })), got: found, where: (e) => e.hint },
+    { key: 'sounds', all: echoes.map((e) => ({ ...e, kind: 'echo' })), got: heard, where: (e) => e.place },
+  ]
+  // A section's entries: what has turned up in the order it turned up, then the rest, by
+  // where they lie (so their order gives nothing away).
+  const listed = (s) => {
+    const got = s.got()
+    const have = got.map((id) => s.all.find((e) => e.id === id)).filter((e) => e && shown(e))
+    const rest = s.all.filter((e) => !got.includes(e.id) && shown(e)).sort((a, b) => collator.compare(s.where(a), s.where(b)))
+    return { have, rest }
+  }
+  const has = (e) => (e.kind === 'relic' ? found() : heard()).includes(e.id)
 
   const radar = document.createElement('button')
   radar.id = 'radar'
-  radar.title = text.timeline.radar
+  radar.title = text.notebook.radar
   radar.innerHTML = `<span class="dish"></span><span class="bars">${'<i></i>'.repeat(5)}</span><span class="count"></span>`
   document.body.appendChild(radar)
   const bars = [...radar.querySelectorAll('.bars i')]
@@ -74,64 +84,64 @@ export function createTimeline({ relics, echoes, has, shown, released, onReplay 
 
   const book = document.createElement('div')
   book.id = 'book'
-  book.innerHTML = `<div class="page"><div class="ribbon">${text.timeline.title}</div><div class="rows"></div><div class="detail"></div><button class="close" aria-label="${text.timeline.close}">×</button></div>`
+  book.innerHTML = `<div class="page"><div class="ribbon">${text.notebook.title}</div><div class="rows"></div><div class="detail"></div><button class="close" aria-label="${text.notebook.close}">×</button></div>`
   document.body.appendChild(book)
   const rows = book.querySelector('.rows')
   const detail = book.querySelector('.detail')
 
   const tally = () => {
-    const list = sorted()
-    return `${list.filter(has).length} / ${list.length}`
+    let got = 0
+    let all = 0
+    for (const s of sections) {
+      const { have, rest } = listed(s)
+      got += have.length
+      all += have.length + rest.length
+    }
+    return `${got} / ${all}`
   }
 
   function show(e) {
     const got = has(e)
-    const time = label(e.when)
     if (e.kind === 'relic') {
       detail.innerHTML = got
-        ? `<img src="${pics[e.id]}" alt=""><div><small>${time}</small><b>${e.name}</b><p>${e.story}</p></div>`
-        : `<img class="unknown" src="${pics[e.id]}" alt=""><div><small>${unknownTime(e.when)}</small><b>${text.timeline.unknown}</b><p>${text.timeline.clue(e.hint)}</p></div>`
+        ? `<img src="${pics[e.id]}" alt=""><div><small>${label(e.when)}</small><b>${e.name}</b><p>${e.story}</p></div>`
+        : `<img class="unknown" src="${pics[e.id]}" alt=""><div><b>${text.notebook.unknown}</b><p>${text.notebook.clue(e.hint)}</p></div>`
       return
     }
     if (!got) {
-      detail.innerHTML = `<span class="icon unknown">${wave()}</span><div><small>${unknownTime(e.when)}</small><b>${text.timeline.unknown}</b><p>${text.timeline.area(e.place)}</p></div>`
+      detail.innerHTML = `<span class="icon unknown">${wave()}</span><div><b>${text.notebook.unknown}</b><p>${text.notebook.area(e.place)}</p></div>`
       return
     }
     const gone = released()
-    detail.innerHTML = `<span class="icon">${wave()}</span><div><small>${e.when}</small><b>${e.place}</b><p class="transcript">${e.lines.join('\n')}</p>${gone ? `<p class="gone">${text.timeline.released}</p>` : `<button class="replay">${createElement(Play).outerHTML}${text.timeline.replay}</button>`}</div>`
+    detail.innerHTML = `<span class="icon">${wave()}</span><div><small>${label(e.when)}</small><b>${e.place}</b><p class="transcript">${e.lines.join('\n')}</p>${gone ? `<p class="gone">${text.notebook.released}</p>` : `<button class="replay">${createElement(Play).outerHTML}${text.notebook.replay}</button>`}</div>`
     detail.querySelector('.replay')?.addEventListener('click', () => {
       toggle(false)
       onReplay(e.id)
     })
   }
 
-  // One row per stretch of time: the years before, the last night, the years after.
+  // Two rows, things and sounds, each in the order they turned up.
   function render() {
     count.textContent = tally()
     rows.innerHTML = ''
-    const groups = []
-    for (const e of sorted()) {
-      const key = !e.when ? 'after' : e.when.startsWith(NIGHT) ? 'night' : 'before'
-      if (groups.at(-1)?.key !== key) groups.push({ key, list: [] })
-      groups.at(-1).list.push(e)
-    }
-    for (const g of groups) {
+    for (const s of sections) {
+      const { have, rest } = listed(s)
+      if (!have.length && !rest.length) continue
       const row = document.createElement('section')
-      row.innerHTML = `<h3>${text.timeline.groups[g.key]}</h3><div class="track"></div>`
+      row.innerHTML = `<h3>${text.notebook.sections[s.key]}</h3><div class="track"></div>`
       const track = row.querySelector('.track')
-      for (const e of g.list) {
+      for (const e of [...have, ...rest]) {
         const got = has(e)
         const slot = document.createElement('button')
         slot.className = `slot ${e.kind}${got ? '' : ' missing'}`
         const face = e.kind === 'relic' ? `<img src="${pics[e.id]}" alt="">` : `<span class="icon">${wave()}</span>`
-        const time = got ? label(e.when) : unknownTime(e.when)
-        slot.innerHTML = `${face}<small>${time}</small><span>${got ? (e.kind === 'relic' ? e.name : e.place) : text.timeline.unknown}</span>`
+        slot.innerHTML = `${face}<small>${got ? label(e.when) : ''}</small><span>${got ? (e.kind === 'relic' ? e.name : e.place) : text.notebook.unknown}</span>`
         slot.addEventListener('click', () => show(e))
         track.appendChild(slot)
       }
       rows.appendChild(row)
     }
-    detail.innerHTML = `<p class="lead">${text.timeline.lead}</p>`
+    detail.innerHTML = `<p class="lead">${text.notebook.lead}</p>`
   }
   render()
 
@@ -170,7 +180,7 @@ export function createTimeline({ relics, echoes, has, shown, released, onReplay 
     },
     collected(def) {
       render()
-      toast.innerHTML = `<img src="${pics[def.id]}" alt=""><div><small>${text.timeline.found}${def.when ? `・${label(def.when)}` : ''}</small><b>${def.name}</b><p>${def.story}</p></div>`
+      toast.innerHTML = `<img src="${pics[def.id]}" alt=""><div><small>${text.notebook.found}${def.when ? `・${label(def.when)}` : ''}</small><b>${def.name}</b><p>${def.story}</p></div>`
       toast.classList.add('show')
       clearTimeout(toastTimer)
       toastTimer = setTimeout(() => toast.classList.remove('show'), 6500)
