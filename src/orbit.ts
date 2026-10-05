@@ -60,6 +60,10 @@ export function createOrbit(dom: HTMLElement, offset: readonly number[], onClick
     get yaw() {
       return now.yaw
     },
+    // How far the camera looks down, in radians above the horizontal.
+    get pitch() {
+      return now.pitch
+    },
     // Turn the camera by `radians`, as Q / E would.
     turn(radians: number) {
       goal.yaw += radians

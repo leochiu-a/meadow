@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { heightAt, rand, range, pick, noise } from './terrain.ts'
-import { addCircle, addSegment } from './collision.ts'
+import { addCircle, addSegment, addBox } from './collision.ts'
 import { brickMaterial } from './bricks.ts'
 import { createBush, createIvy, type IvyStrand } from './vegetation.ts'
 import { graffiti } from './graffiti.ts'
@@ -389,7 +389,7 @@ export function cottage(x: number, z: number, { w = 6, d = 4.5, h = 4.2, rotY = 
   g.position.y = 0
   const cos = Math.cos(rotY)
   const sin = Math.sin(rotY)
-  addSegment(x - (w / 2) * cos, z + (w / 2) * sin, x + (w / 2) * cos, z - (w / 2) * sin, d / 2 + 0.3)
+  addBox(x, z, cos, -sin, w, d + 0.6)
   if (pergola) {
     for (const px of [-w * 0.38, w * 0.38]) {
       const pz = d / 2 + 1.8
@@ -495,7 +495,7 @@ export function planterBed(x: number, z: number, rotY = 0, w = 3, d = 1.4) {
     leaf.scale.y = 0.7
     g.add(leaf)
   }
-  addSegment(x - (w / 2) * Math.cos(rotY), z + (w / 2) * Math.sin(rotY), x + (w / 2) * Math.cos(rotY), z - (w / 2) * Math.sin(rotY), d / 2)
+  addBox(x, z, Math.cos(rotY), -Math.sin(rotY), w, d)
   return shadowed(place(g, x, z, rotY))
 }
 

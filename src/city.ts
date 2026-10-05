@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { rand, range, pick, noise } from './terrain.ts'
-import { addSegment, addCircle } from './collision.ts'
+import { addSegment, addCircle, addBox } from './collision.ts'
 import { weathered, type WeatherOptions } from './weathering.ts'
 import { withCutaway } from './cutaway.ts'
 import { createIvy, type IvyStrand } from './vegetation.ts'
@@ -259,10 +259,10 @@ export type Ruin = 'none' | 'shell' | 'collapsed' | 'lean'
 function rubble(local: LocalPart[], x: number, z: number, { radius, height, count, tint = null }: { radius: number; height: number; count: number; tint?: string | null }) {
   const q = new THREE.Quaternion()
   const e = new THREE.Euler()
-  // The heap itself, long since grown over with moss: a dome the chunks lie on, so nothing
-  // hangs in the air.
+  // The heap itself: a dome the chunks lie on, so nothing hangs in the air. Dusty concrete
+  // with a little moss, never lawn green: it blocks the way, so it has to read as rubble.
   const peak = Math.min(height, radius * 0.6)
-  local.push(['mound', new THREE.Matrix4().compose(new THREE.Vector3(x, -0.05, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rand() * 6, 0)), new THREE.Vector3(radius, peak, radius * range(0.8, 1))), pick(['#6f7d4a', '#7a8656', '#66743f'])])
+  local.push(['mound', new THREE.Matrix4().compose(new THREE.Vector3(x, -0.05, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rand() * 6, 0)), new THREE.Vector3(radius, peak, radius * range(0.8, 1))), pick(['#7d776b', '#86806f', '#727060'])])
   const surface = (r: number) => peak * Math.sqrt(Math.max(0, 1 - (r / radius) ** 2))
   for (let i = 0; i < count; i++) {
     const r = radius * Math.sqrt(rand())
@@ -553,9 +553,10 @@ export function shophouse({ x, z, w, d, floors, rotY = 0, signs = 1, ruin = 'non
   castShadows(g)
   // Solid behind the arcade, columns along its edge; the arcade itself is walkable.
   const toWorld = (lx: number, lz: number) => new THREE.Vector3(lx, 0, lz).applyMatrix4(g.matrixWorld)
-  const a = toWorld(-w / 2 + 0.2, -ARCADE - (d - ARCADE) / 2)
-  const b = toWorld(w / 2 - 0.2, -ARCADE - (d - ARCADE) / 2)
-  addSegment(a.x, a.z, b.x, b.z, (d - ARCADE) / 2)
+  const back = toWorld(0, -ARCADE - (d - ARCADE) / 2)
+  // Along the street, flattened onto the ground (a leaning block tilts its local x).
+  const along = toWorld(1, 0).sub(toWorld(0, 0)).setY(0).normalize()
+  addBox(back.x, back.z, along.x, along.z, w - 0.4, d - ARCADE)
   for (const cx of cols) {
     const c = toWorld(cx, -0.3)
     addCircle(c.x, c.z, 0.4)

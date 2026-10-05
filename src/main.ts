@@ -152,7 +152,7 @@ const wishes = createWishes(scene, sceneName, world.landmarks, { song: (timbre) 
 // In the village the music box plays from the cottage now and then, as it does every evening.
 let musicBoxIn = 20
 await loading(0.77, text.loading.camera)
-const { composer, ao, setRain } = createComposer(renderer, scene, camera)
+const { composer, ao, setRain, setPitch } = createComposer(renderer, scene, camera)
 
 // Weather: wet surfaces reflect an overcast sky, as strongly as they are wet.
 applyWet(scene)
@@ -295,6 +295,7 @@ function step(dt: number) {
   // Camera trails the robot with a gentle drift, like a handheld miniature shot.
   focus.lerp(robot.position, 1 - Math.exp(-dt * 2.2))
   orbit.update(dt, offset)
+  setPitch(orbit.pitch)
   const sway = Math.sin(t * 0.13) * 0.6
   const drift = new THREE.Vector3(Math.cos(orbit.yaw) * sway, Math.sin(t * 0.17) * 0.25, -Math.sin(orbit.yaw) * sway)
   camera.position.copy(focus).add(offset).add(drift)

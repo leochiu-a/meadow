@@ -24,6 +24,22 @@ export function addSegment(ax: number, az: number, bx: number, bz: number, r: nu
   colliders.push({ ax, az, bx, bz, r })
 }
 
+// A w × d rectangle centred on (x, z), w along the unit direction (ux, uz). A single fat
+// capsule would bulge its rounded ends far past the sides, so the rectangle is laid with
+// thin capsules along its longer side, their ends kept inside it.
+export function addBox(x: number, z: number, ux: number, uz: number, w: number, d: number) {
+  const [long, short, ax, az, bx, bz] = w >= d ? [w, d, ux, uz, -uz, ux] : [d, w, -uz, ux, ux, uz]
+  const strips = Math.max(1, Math.ceil(short / 1.2))
+  const r = short / (2 * strips)
+  const half = Math.max(0, long / 2 - r)
+  for (let i = 0; i < strips; i++) {
+    const off = -short / 2 + r * (2 * i + 1)
+    const cx = x + bx * off
+    const cz = z + bz * off
+    colliders.push({ ax: cx - ax * half, az: cz - az * half, bx: cx + ax * half, bz: cz + az * half, r })
+  }
+}
+
 export function resolve(pos: PointXZ, radius: number) {
   for (let iter = 0; iter < 3; iter++) {
     for (const c of colliders) {

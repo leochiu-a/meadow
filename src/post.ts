@@ -36,13 +36,14 @@ export function createComposer(renderer: THREE.WebGLRenderer, scene: THREE.Scene
 
   // One pass for bloom, tilt-shift and the grade, then SMAA on the final LDR image.
   // Tone map before grading: grading HDR values can go negative, which turns black.
+  const tilt = new TiltShiftEffect({ offset: -0.12, focusArea: 0.42, feather: 0.3, kernelSize: KernelSize.LARGE })
   const saturation = new HueSaturationEffect({ saturation: 0.02, hue: 0.0 })
   const tone = new BrightnessContrastEffect({ brightness: 0.02, contrast: 0.05 })
   composer.addPass(
     new EffectPass(
       camera,
       new BloomEffect({ intensity: 0.7, luminanceThreshold: 0.85, luminanceSmoothing: 0.25, mipmapBlur: true, radius: 0.7 }),
-      new TiltShiftEffect({ offset: -0.12, focusArea: 0.42, feather: 0.3, kernelSize: KernelSize.LARGE }),
+      tilt,
       new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }),
       saturation,
       tone,
@@ -54,6 +55,13 @@ export function createComposer(renderer: THREE.WebGLRenderer, scene: THREE.Scene
     composer,
     ao,
     // Overcast grade for rain (0–1): greyer and a little darker and flatter.
+    // Tilt-shift reads as a miniature only from above: as the camera comes down toward the
+    // horizon (pitch in radians), the sharp band widens and softens, like a lens at eye level.
+    setPitch(pitch: number) {
+      const low = 1 - THREE.MathUtils.smoothstep(pitch, 0.3, 0.72)
+      tilt.focusArea = 0.42 + 0.4 * low
+      tilt.feather = 0.3 + 0.2 * low
+    },
     setRain(r: number) {
 
       saturation.saturation = 0.02 - 0.32 * r

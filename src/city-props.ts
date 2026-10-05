@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { rand, range, pick } from './terrain.ts'
-import { addCircle, addSegment } from './collision.ts'
+import { addCircle, addSegment, addBox } from './collision.ts'
 import { cityMat } from './city.ts'
 import { withCutaway } from './cutaway.ts'
 import { weathered } from './weathering.ts'
@@ -342,7 +342,7 @@ export function mrtExit(x: number, z: number, rotY: number, { number = 6, length
   const c = Math.cos(rotY)
   const s = Math.sin(rotY)
   // The pavilion blocks walkers and keeps grass off its floor.
-  addSegment(x - (L / 2) * s, z - (L / 2) * c, x + (L / 2) * s, z + (L / 2) * c, W / 2 + 0.1)
+  addBox(x, z, s, c, L, W + 0.2)
   addCircle(x + (W / 2 + 1.6) * c + (L / 2 + 1.6) * s, z - (W / 2 + 1.6) * s + (L / 2 + 1.6) * c, 0.25)
   return g
 }
