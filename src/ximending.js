@@ -956,6 +956,7 @@ export default {
     camera: { offset: [0, 11, 12.5], hfov: 33 },
   },
   ambience: 'city',
+  music: '/music/ximending.mp3',
   start,
   tour,
   attribution: data.attribution,

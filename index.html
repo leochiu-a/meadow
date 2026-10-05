@@ -139,6 +139,24 @@
         #radar { top: auto; bottom: 76px; }
         #toast { top: auto; bottom: 122px; }
       }
+      /* Sound mixer: a slider per channel, in the book's paper style, above the controls. */
+      #mixer {
+        position: fixed; right: 16px; bottom: 76px; width: min(300px, calc(100vw - 32px)); box-sizing: border-box;
+        padding: 26px 16px 12px; border-radius: 16px; background: #fff6e2;
+        box-shadow: 0 0 0 3px #8a6a3e, 0 8px 22px rgba(40, 28, 10, 0.35);
+        font: 700 13px "PingFang TC", "Heiti TC", system-ui, sans-serif; color: #5a4024;
+        opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity 0.2s, transform 0.2s;
+      }
+      #mixer.open { opacity: 1; transform: none; pointer-events: auto; }
+      #mixer .ribbon {
+        position: absolute; left: 50%; top: -14px; transform: translateX(-50%); padding: 3px 18px; border-radius: 12px;
+        font-weight: 800; letter-spacing: 2px; color: #fff8e6; background: #d2643a; white-space: nowrap;
+        box-shadow: 0 0 0 2px #8a3a1e, 0 2px 0 2px rgba(80, 30, 10, 0.4);
+      }
+      #mixer label { display: grid; grid-template-columns: 76px 1fr 40px; align-items: center; gap: 10px; padding: 5px 0; }
+      #mixer label:first-of-type { padding-bottom: 10px; margin-bottom: 4px; border-bottom: 2px dashed #e2d4b4; }
+      #mixer input { width: 100%; accent-color: #d2643a; }
+      #mixer output { text-align: right; font-variant-numeric: tabular-nums; color: #a08868; }
       /* Loading screen: shown from the first paint, filled by src/loading.js as the scene builds. */
       #loading {
         position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
@@ -164,7 +182,7 @@
       @keyframes loadingShine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
       #loading .label { color: rgba(255, 246, 226, 0.7); }
       #lang { min-width: 44px; padding: 0 12px; font-weight: 700; }
-      #sound {
+      #sound, #mixer-button {
         width: 44px; height: 44px;
         font-size: 20px; border: 0; border-radius: 50%; cursor: pointer;
         background: rgba(30, 40, 20, 0.45); color: #fff; backdrop-filter: blur(4px);

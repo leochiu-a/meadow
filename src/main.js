@@ -12,6 +12,7 @@ import { createWeather, createRain, applyWet, overcastEnvironment } from './weat
 import { createScavenge } from './scavenge.js'
 import { createCollectionUI } from './collection.js'
 import { createStory } from './story.js'
+import { createMixer, loadLevels } from './mixer.js'
 import { loading, loaded, within } from './loading.js'
 import { lang, text, setLang } from './i18n.js'
 
@@ -100,7 +101,9 @@ const STORM_GREY = new THREE.Color('#8b9296')
 const minimap = world.minimap ? createMinimap(world.minimap, (x, z) => robot.goTo(new THREE.Vector3(x, 0, z))) : null
 
 // Browsers only allow audio after a user gesture, so the soundscape starts on first input.
-audio = createAudio(def.ambience)
+const levels = loadLevels()
+audio = createAudio(def.ambience, def.music, levels)
+createMixer(audio, levels)
 const weather = createWeather((delay) => audio.thunder(delay))
 const soundButton = document.getElementById('sound')
 const startAudio = () => {

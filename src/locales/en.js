@@ -4,6 +4,7 @@ export default {
   langLabel: '切換為中文',
   hint: 'Click to turn on sound · WASD / arrow keys to move · click the ground or map to go there · drag / Q E to turn · scroll to zoom · R rain · B book · M map · idle 4 s to auto-tour',
   sound: 'Toggle sound',
+  mixer: { title: 'Sound', master: 'Master', music: 'Music', ambience: 'Ambience', weather: 'Weather', animals: 'Animals', robot: 'Robot', ui: 'Interface' },
   goTo: (scene) => `Go to ${scene}`,
   credit: 'Map data',
   scenes: { meadow: 'the Meadow', ximending: 'Ruined Ximending' },

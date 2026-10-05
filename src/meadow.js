@@ -245,6 +245,7 @@ export default {
     sunDirection: new THREE.Vector3(-12, 13, -9).normalize(),
     camera: { offset: [0, 11, 12.5], hfov: 33 },
   },
+  music: '/music/meadow.mp3',
   start: [0.6, -7.5],
   // Route that wanders past the landmarks, like the camera move in the reference clip.
   tour: [

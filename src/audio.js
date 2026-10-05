@@ -1,9 +1,11 @@
-// Procedural soundscape built with the Web Audio API: wind, rustling leaves, birdsong,
-// animal calls, the robot's motor, and a soft music-box melody. No audio files needed.
+// Soundscape built with the Web Audio API: wind, rustling leaves, birdsong, animal calls
+// and the robot's motor, all synthesized, under the scene's background music track.
 // ambience 'city' swaps the meadow's breeze for wind whistling through dead streets,
-// creaking signs, rattling shutters and crows, and plays the melody in a minor key.
+// creaking signs, rattling shutters and crows.
 
 const PENTATONIC = [0, 2, 4, 7, 9]
+// The mixer's channels, each with its own volume (0–1) on top of the master.
+export const CHANNELS = ['music', 'ambience', 'weather', 'animals', 'robot', 'ui']
 const midiToHz = (m) => 440 * 2 ** ((m - 69) / 12)
 const rand = (a, b) => a + Math.random() * (b - a)
 
@@ -23,15 +25,27 @@ function noiseBuffer(ctx, seconds, kind) {
   return buf
 }
 
-export function createAudio(ambience = 'meadow') {
+export function createAudio(ambience = 'meadow', music = null, levels = {}) {
   const city = ambience === 'city'
   let ctx = null
   let master = null
   let enabled = true
   let started = false
   const sfx = {}
-  const timers = { bird: 2, music: 0, chord: 0, creak: 6, rattle: 14, crow: 9 }
+  // Volume per channel plus 'master'; the user's mixer settings, applied once audio exists.
+  const level = { master: 1, ...Object.fromEntries(CHANNELS.map((c) => [c, 1])), ...levels }
+  // Each channel: dry goes straight out, wet also feeds the room reverb.
+  const bus = {}
+  const timers = { bird: 2, creak: 6, rattle: 14, crow: 9 }
   const animalTimers = new Map()
+
+  const masterTarget = () => (enabled ? 0.9 * level.master : 0)
+  function setLevel(name, value) {
+    level[name] = value
+    if (!ctx) return
+    if (name === 'master') master.gain.setTargetAtTime(started ? masterTarget() : 0, ctx.currentTime, 0.05)
+    else for (const node of Object.values(bus[name])) node.gain.setTargetAtTime(value, ctx.currentTime, 0.05)
+  }
 
   function loopNoise(kind, seconds = 4) {
     const src = ctx.createBufferSource()
@@ -51,29 +65,29 @@ export function createAudio(ambience = 'meadow') {
     osc.start()
   }
 
-  function spatial(x, z, listener) {
+  // Distant sounds are quieter; everything plays in mono, so nothing sits left or right.
+  function spatial(x, z, listener, channel) {
     const d = Math.hypot(x - listener.x, z - listener.z)
-    const pan = ctx.createStereoPanner()
-    pan.pan.value = Math.max(-1, Math.min(1, (x - listener.x) / 14))
     const g = ctx.createGain()
     g.gain.value = 1 / (1 + d * d * 0.012)
-    pan.connect(g).connect(sfx.fx)
-    return { input: pan, distance: d }
+    g.connect(bus[channel].wet)
+    return { input: g, distance: d }
   }
 
   function build() {
     ctx = new AudioContext()
+    // One channel out: both speakers play the same mix.
     master = ctx.createGain()
+    master.channelCount = 1
+    master.channelCountMode = 'explicit'
     master.gain.value = 0
     master.connect(ctx.destination)
 
     // Gentle room so everything sits in the same space.
     const verb = ctx.createConvolver()
-    const ir = ctx.createBuffer(2, ctx.sampleRate * 2.2, ctx.sampleRate)
-    for (let ch = 0; ch < 2; ch++) {
-      const d = ir.getChannelData(ch)
-      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 3
-    }
+    const ir = ctx.createBuffer(1, ctx.sampleRate * 2.2, ctx.sampleRate)
+    const decay = ir.getChannelData(0)
+    for (let i = 0; i < decay.length; i++) decay[i] = (Math.random() * 2 - 1) * (1 - i / decay.length) ** 3
     verb.buffer = ir
     const verbGain = ctx.createGain()
     verbGain.gain.value = 0.25
@@ -82,9 +96,15 @@ export function createAudio(ambience = 'meadow') {
     sfx.click = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.03), ctx.sampleRate)
     const tick = sfx.click.getChannelData(0)
     for (let i = 0; i < tick.length; i++) tick[i] = (Math.random() * 2 - 1) * (1 - i / tick.length) ** 2
-    sfx.fx = ctx.createGain()
-    sfx.fx.connect(master)
-    sfx.fx.connect(verb)
+    for (const c of CHANNELS) {
+      const dry = ctx.createGain()
+      const wet = ctx.createGain()
+      dry.connect(master)
+      wet.connect(master)
+      wet.connect(verb)
+      bus[c] = { dry, wet }
+      setLevel(c, level[c])
+    }
 
     // Wind: low brown noise with slow gusts.
     const wind = loopNoise('brown', 6)
@@ -92,7 +112,7 @@ export function createAudio(ambience = 'meadow') {
     windFilter.type = 'lowpass'
     windFilter.Q.value = 0.7
     const windGain = ctx.createGain()
-    wind.connect(windFilter).connect(windGain).connect(master)
+    wind.connect(windFilter).connect(windGain).connect(bus.ambience.dry)
     lfo(0.07, 260, windFilter.frequency, 520)
     lfo(0.11, 0.07, windGain.gain, 0.16)
 
@@ -103,7 +123,7 @@ export function createAudio(ambience = 'meadow') {
     leafFilter.frequency.value = 5200
     leafFilter.Q.value = 0.8
     const leafGain = ctx.createGain()
-    leaves.connect(leafFilter).connect(leafGain).connect(master)
+    leaves.connect(leafFilter).connect(leafGain).connect(bus.ambience.dry)
     lfo(0.09, 0.012, leafGain.gain, city ? 0.008 : 0.016)
 
     // City wind: a hollow whistle through broken windows that rises with the gusts.
@@ -113,7 +133,7 @@ export function createAudio(ambience = 'meadow') {
       howlFilter.type = 'bandpass'
       howlFilter.Q.value = 18
       const howlGain = ctx.createGain()
-      howl.connect(howlFilter).connect(howlGain).connect(master)
+      howl.connect(howlFilter).connect(howlGain).connect(bus.ambience.dry)
       lfo(0.05, 220, howlFilter.frequency, 640)
       lfo(0.08, 0.05, howlGain.gain, 0.06)
     }
@@ -130,26 +150,39 @@ export function createAudio(ambience = 'meadow') {
     sfx.motorGain.gain.value = 0
     sfx.motorA.connect(motorFilter)
     sfx.motorB.connect(motorFilter)
-    motorFilter.connect(sfx.motorGain).connect(sfx.fx)
+    motorFilter.connect(sfx.motorGain).connect(bus.robot.wet)
     sfx.motorA.start()
     sfx.motorB.start()
 
-    // Music bus kept soft and warm.
     buildRain()
 
-    sfx.music = ctx.createGain()
-    sfx.music.gain.value = 0.11
-    const musicTone = ctx.createBiquadFilter()
-    musicTone.type = 'lowpass'
-    musicTone.frequency.value = 2600
-    sfx.music.connect(musicTone).connect(master)
-    musicTone.connect(verb)
+    // Plucked notes (the find chime), kept soft and warm.
+    sfx.pluck = ctx.createGain()
+    sfx.pluck.gain.value = 0.11
+    const pluckTone = ctx.createBiquadFilter()
+    pluckTone.type = 'lowpass'
+    pluckTone.frequency.value = 2600
+    sfx.pluck.connect(pluckTone).connect(bus.ui.wet)
+
+    if (music) playMusic(music)
+  }
+
+  // The scene's background track, decoded whole so it loops without a gap.
+  async function playMusic(url) {
+    const data = await (await fetch(url)).arrayBuffer()
+    const src = ctx.createBufferSource()
+    src.buffer = await ctx.decodeAudioData(data)
+    src.loop = true
+    const g = ctx.createGain()
+    g.gain.value = 0.3
+    src.connect(g).connect(bus.music.dry)
+    src.start()
   }
 
   function chirp(listener) {
     const x = listener.x + rand(-18, 18)
     const z = listener.z + rand(-14, 8)
-    const { input } = spatial(x, z, listener)
+    const { input } = spatial(x, z, listener, 'animals')
     const t0 = ctx.currentTime
     const notes = Math.floor(rand(2, 7))
     const base = rand(2600, 4200)
@@ -173,7 +206,7 @@ export function createAudio(ambience = 'meadow') {
   }
 
   function moo(x, z, listener) {
-    const { input, distance } = spatial(x, z, listener)
+    const { input, distance } = spatial(x, z, listener, 'animals')
     if (distance > 40) return
     const t = ctx.currentTime
     const dur = rand(1.2, 1.9)
@@ -201,7 +234,7 @@ export function createAudio(ambience = 'meadow') {
   }
 
   function cluck(x, z, listener) {
-    const { input, distance } = spatial(x, z, listener)
+    const { input, distance } = spatial(x, z, listener, 'animals')
     if (distance > 25) return
     const t0 = ctx.currentTime
     const n = Math.floor(rand(2, 5))
@@ -228,7 +261,7 @@ export function createAudio(ambience = 'meadow') {
 
   // A hanging sign swinging on a rusty hinge somewhere nearby.
   function creak(listener) {
-    const { input } = spatial(listener.x + rand(-16, 16), listener.z + rand(-12, 8), listener)
+    const { input } = spatial(listener.x + rand(-16, 16), listener.z + rand(-12, 8), listener, 'ambience')
     const t = ctx.currentTime
     const dur = rand(0.5, 1.2)
     const osc = ctx.createOscillator()
@@ -262,7 +295,7 @@ export function createAudio(ambience = 'meadow') {
 
   // A loose roller shutter rattling in a gust.
   function rattle(listener) {
-    const { input } = spatial(listener.x + rand(-14, 14), listener.z + rand(-10, 6), listener)
+    const { input } = spatial(listener.x + rand(-14, 14), listener.z + rand(-10, 6), listener, 'ambience')
     const t0 = ctx.currentTime
     const n = Math.floor(rand(5, 12))
     for (let i = 0; i < n; i++) {
@@ -282,7 +315,7 @@ export function createAudio(ambience = 'meadow') {
 
   // A crow somewhere over the rooftops.
   function caw(listener) {
-    const { input } = spatial(listener.x + rand(-20, 20), listener.z + rand(-18, 4), listener)
+    const { input } = spatial(listener.x + rand(-20, 20), listener.z + rand(-18, 4), listener, 'ambience')
     const t0 = ctx.currentTime
     const n = Math.floor(rand(2, 4))
     for (let i = 0; i < n; i++) {
@@ -308,7 +341,7 @@ export function createAudio(ambience = 'meadow') {
 
   // Pigeon: a soft throaty "coo-COO-oo".
   function coo(x, z, listener) {
-    const { input, distance } = spatial(x, z, listener)
+    const { input, distance } = spatial(x, z, listener, 'animals')
     if (distance > 20) return
     const t0 = ctx.currentTime
     ;[[0, 0.18, 0.7], [0.22, 0.32, 1], [0.58, 0.25, 0.6]].forEach(([at, dur, vol]) => {
@@ -331,7 +364,7 @@ export function createAudio(ambience = 'meadow') {
 
   // Cat: "mi-aow", a rising then falling nasal glide.
   function meow(x, z, listener) {
-    const { input, distance } = spatial(x, z, listener)
+    const { input, distance } = spatial(x, z, listener, 'animals')
     if (distance > 25) return
     const t = ctx.currentTime
     const dur = rand(0.45, 0.8)
@@ -359,7 +392,7 @@ export function createAudio(ambience = 'meadow') {
 
   // Dog: one or two short "woof"s, a noisy burst over a dropping tone.
   function bark(x, z, listener) {
-    const { input, distance } = spatial(x, z, listener)
+    const { input, distance } = spatial(x, z, listener, 'animals')
     if (distance > 35) return
     const t0 = ctx.currentTime
     const n = Math.random() < 0.5 ? 1 : 2
@@ -391,7 +424,7 @@ export function createAudio(ambience = 'meadow') {
 
   // A flock taking off: a burst of wingbeats that fades as it climbs away.
   function flutter(x, z, listener) {
-    const { input, distance } = spatial(x, z, listener)
+    const { input, distance } = spatial(x, z, listener, 'animals')
     if (distance > 25) return
     const t0 = ctx.currentTime
     for (let i = 0; i < 26; i++) {
@@ -419,7 +452,7 @@ export function createAudio(ambience = 'meadow') {
     g.gain.setValueAtTime(0.0001, t)
     g.gain.exponentialRampToValueAtTime(0.03 + signal * 0.04, t + 0.005)
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09)
-    osc.connect(g).connect(sfx.fx)
+    osc.connect(g).connect(bus.ui.wet)
     osc.start(t)
     osc.stop(t + 0.1)
   }
@@ -438,7 +471,7 @@ export function createAudio(ambience = 'meadow') {
   function buildRain() {
     sfx.rainGain = ctx.createGain()
     sfx.rainGain.gain.value = 0
-    sfx.rainGain.connect(master)
+    sfx.rainGain.connect(bus.weather.dry)
     const hiss = loopNoise('white', 3)
     const hp = ctx.createBiquadFilter()
     hp.type = 'highpass'
@@ -473,7 +506,7 @@ export function createAudio(ambience = 'meadow') {
     g.gain.exponentialRampToValueAtTime(0.9, t + 0.08)
     g.gain.exponentialRampToValueAtTime(0.35, t + 1.5)
     g.gain.exponentialRampToValueAtTime(0.0001, t + 5.5)
-    src.connect(lp).connect(g).connect(sfx.fx)
+    src.connect(lp).connect(g).connect(bus.weather.wet)
     src.start(t)
     src.stop(t + 6)
   }
@@ -493,46 +526,24 @@ export function createAudio(ambience = 'meadow') {
     g.gain.exponentialRampToValueAtTime(0.0001, when + dur)
     osc.connect(g)
     over.connect(og).connect(g)
-    g.connect(sfx.music)
+    g.connect(sfx.pluck)
     osc.start(when)
     over.start(when)
     osc.stop(when + dur)
     over.stop(when + dur)
   }
 
-  // A wandering pentatonic melody over a slow I–vi–IV–V cycle in F; in the city, a
-  // wistful i–VI–III–VII in D minor over the same notes.
-  const CHORDS = city ? [[50, 53, 57], [46, 50, 53], [53, 57, 60], [48, 52, 55]] : [[53, 57, 60], [50, 53, 57], [46, 50, 53], [48, 52, 55]]
-  let chordIdx = 0
-  let lastNote = 2
-  function musicStep(dt) {
-    timers.chord -= dt
-    timers.music -= dt
-    const now = ctx.currentTime + 0.05
-    if (timers.chord <= 0) {
-      timers.chord = 4.8
-      const chord = CHORDS[chordIdx++ % CHORDS.length]
-      chord.forEach((m, i) => pluck(m, now + i * 0.06, 0.22, 4.5))
-    }
-    if (timers.music <= 0) {
-      timers.music = Math.random() < 0.3 ? 1.2 : 0.6
-      if (Math.random() < 0.8) {
-        lastNote = Math.max(0, Math.min(9, lastNote + Math.floor(rand(-2, 3))))
-        const octave = Math.floor(lastNote / 5)
-        pluck(65 + 12 * octave + PENTATONIC[lastNote % 5], now, 0.32, 1.8)
-      }
-    }
-  }
-
   return {
     get enabled() {
       return enabled
     },
+    // Mixer volume (0–1) for 'master' or one of CHANNELS.
+    setLevel,
     start() {
       if (!ctx) build()
       if (ctx.state === 'suspended') ctx.resume()
       started = true
-      master.gain.setTargetAtTime(enabled ? 0.9 : 0, ctx.currentTime, 0.4)
+      master.gain.setTargetAtTime(masterTarget(), ctx.currentTime, 0.4)
     },
     toggle() {
       // The very first press only unlocks audio; later presses mute/unmute.
@@ -541,7 +552,7 @@ export function createAudio(ambience = 'meadow') {
         return enabled
       }
       enabled = !enabled
-      master.gain.setTargetAtTime(enabled ? 0.9 : 0, ctx.currentTime, 0.2)
+      master.gain.setTargetAtTime(masterTarget(), ctx.currentTime, 0.2)
       return enabled
     },
     // Short two-tone "boop" when the robot gets a new destination.
@@ -556,7 +567,7 @@ export function createAudio(ambience = 'meadow') {
         g.gain.setValueAtTime(0.0001, t + i * 0.08)
         g.gain.exponentialRampToValueAtTime(0.08, t + i * 0.08 + 0.01)
         g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.08 + 0.12)
-        osc.connect(g).connect(sfx.fx)
+        osc.connect(g).connect(bus.robot.wet)
         osc.start(t + i * 0.08)
         osc.stop(t + i * 0.08 + 0.13)
       })
@@ -610,7 +621,6 @@ export function createAudio(ambience = 'meadow') {
           animalTimers.set(p, t)
         }
       }
-      musicStep(dt)
     },
   }
 }
