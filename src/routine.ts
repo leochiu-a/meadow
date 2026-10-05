@@ -17,6 +17,8 @@ const ENOUGH = 4
 const LONG_ENOUGH = 360
 // With no progress for this long, the robot reads out what its schedule says is next.
 const NUDGE_AFTER = 20
+// Clear-weather seconds the solar panel needs, parked or rolling.
+const SUN_NEEDED = 30
 
 /**
  * landmarks: { crossing, patrol } from the scene. animals: the scene's strays. robot: for
@@ -108,7 +110,7 @@ export function createRoutine({ landmarks, animals = [], robot, onGreet, onDone 
         }
       }
       if (rain < 0.05) sunny += dt
-      if (sunny > 8) complete('sun', t.lines.sun)
+      if (sunny > SUN_NEEDED) complete('sun', t.lines.sun)
       const flock = events.find((e) => e.kind === 'flutter' && Math.hypot(e.x - p.x, e.z - p.z) < 8)
       if (flock) complete('pigeons', t.lines.pigeons(Math.floor(5 + Math.random() * 30)))
       if (rain > 0.3) complete('lens', t.lines.lens)
