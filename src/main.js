@@ -12,6 +12,7 @@ import { createWeather, createRain, applyWet, overcastEnvironment } from './weat
 import { createScavenge } from './scavenge.js'
 import { createCollectionUI } from './collection.js'
 import { createStory } from './story.js'
+import { loading, loaded, within } from './loading.js'
 
 const renderer = new THREE.WebGLRenderer({ powerPreference: 'high-performance', antialias: false, stencil: false })
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
@@ -56,7 +57,8 @@ sun.shadow.radius = 3
 sun.shadow.intensity = 0.72
 scene.add(sun, sun.target)
 
-const world = def.build(scene)
+const world = await def.build(scene, within(0.1, 0.75))
+await loading(0.75, '啟動機器人…')
 const robot = createRobot(...def.start, def.tour, world.nav)
 scene.add(robot.object)
 
@@ -75,8 +77,7 @@ const story = createStory(sceneName, world.story, {
   allFound: () => scavenge.found.size === scavenge.defs.length,
   goTo: (name) => (location.search = `?scene=${name}`),
 })
-setTimeout(() => story.start(), 800)
-
+await loading(0.77, '準備鏡頭…')
 const { composer, ao, setRain } = createComposer(renderer, scene, camera)
 
 // Weather: wet surfaces reflect an overcast sky, as strongly as they are wet.
@@ -164,7 +165,15 @@ const pause = () => {
 }
 addEventListener('blur', pause)
 addEventListener('focus', run)
+
+// Compile every shader before the first frame, so the scene appears whole instead of stalling.
+await loading(0.78, '編譯著色器…')
+await renderer.compileAsync(scene, camera)
+await loading(0.88, '點亮畫面…')
+composer.render(0)
+loaded()
 run()
+setTimeout(() => story.start(), 800)
 
 function step(dt) {
   windUniforms.uTime.value = t

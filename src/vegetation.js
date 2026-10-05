@@ -79,11 +79,15 @@ function tiledInstances(geometry, material, entries, tile = 16) {
 /**
  * Grass tufts scattered over bounds [minX, maxX, minZ, maxZ]. The scene decides where grass
  * grows: place(x, z, color) returns the tuft height (0 to skip) and fills in its colour.
+ * progress(fraction) is awaited along the way.
  */
-export function createGrass({ bounds, target, place }) {
+export async function createGrass({ bounds, target, place, progress }) {
   const [minX, maxX, minZ, maxZ] = bounds
   const entries = []
+  const step = Math.ceil(target / 5)
   for (let tries = 0; tries < target * 3 && entries.length < target; tries++) {
+    // The lawn is most of a scene's build time, so it reports progress as it goes.
+    if (tries % step === 0) await progress(Math.max(entries.length / target, tries / (target * 3)))
     const x = range(minX, maxX)
     const z = range(minZ, maxZ)
     const tall = place(x, z, color)
@@ -95,6 +99,7 @@ export function createGrass({ bounds, target, place }) {
     dummy.updateMatrix()
     entries.push({ x, z, matrix: dummy.matrix.clone(), color: color.clone() })
   }
+  await progress(1)
   return tiledInstances(
     tuftGeometry(),
     applyWind(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.85 }), { strength: 0.22 }),

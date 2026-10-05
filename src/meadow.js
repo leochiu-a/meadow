@@ -53,7 +53,8 @@ function meadowFlowers(blocked) {
   }
 }
 
-function build(scene) {
+async function build(scene, progress) {
+  await progress(0, '鋪設草原…')
   setTerrain(meadowTerrain)
   const updaters = []
   scene.add(createGround())
@@ -173,9 +174,11 @@ function build(scene) {
 
   scene.add(flushBricks())
 
+  await progress(0.3, '讓植物長出來…')
   // --- Foliage last, so it can avoid every prop's footprint ---
   const blocked = buildBlockers()
-  scene.add(createGrass({ bounds: [-46, 46, -40, 42], target: 200000, place: meadowGrass(blocked) }))
+  const grow = (f) => progress(0.3 + 0.45 * f, '讓植物長出來…')
+  scene.add(await createGrass({ bounds: [-46, 46, -40, 42], target: 200000, place: meadowGrass(blocked), progress: grow }))
   scene.add(props.litter(blocked, { minX: PLAZA.minX - 4, maxX: PLAZA.maxX + 4, minZ: PLAZA.minZ, maxZ: PLAZA.maxZ + 6 }))
   scene.add(createFlowers({ bounds: [-44, 44, -38, 40], target: 70000, place: meadowFlowers(blocked) }))
   const reedSpots = []
@@ -201,6 +204,7 @@ function build(scene) {
     ]),
   )
 
+  await progress(0.97, '規劃路線…')
   // Routes for the robot, planned around everything placed above.
   const nav = createNavGrid({ minX: -46, maxX: 46, minZ: -40, maxZ: 42 })
   return {

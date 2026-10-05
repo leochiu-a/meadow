@@ -131,6 +131,30 @@
         #radar { top: auto; bottom: 76px; }
         #toast { top: auto; bottom: 122px; }
       }
+      /* Loading screen: shown from the first paint, filled by src/loading.js as the scene builds. */
+      #loading {
+        position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+        background: #2c3320; transition: opacity 0.6s;
+        font: 13px/1.5 "PingFang TC", "Heiti TC", system-ui, sans-serif; color: #fff6e2;
+      }
+      #loading.done { opacity: 0; pointer-events: none; }
+      #loading .box { display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(320px, calc(100vw - 32px)); }
+      #loading .title { font-weight: 800; font-size: 18px; letter-spacing: 4px; }
+      #loading .bar {
+        width: 100%; height: 14px; padding: 3px; box-sizing: border-box; border-radius: 10px;
+        background: #fff6e2; box-shadow: 0 0 0 3px #8a6a3e;
+      }
+      #loading .bar i {
+        position: relative; display: block; overflow: hidden; height: 100%; width: 0;
+        border-radius: 6px; background: #d2643a; transition: width 0.3s ease-out;
+      }
+      /* A transform animation runs off the main thread, so the shine keeps moving while a step builds. */
+      #loading .bar i::after {
+        content: ""; position: absolute; inset: 0; animation: loadingShine 1.2s linear infinite;
+        background: linear-gradient(90deg, transparent, rgba(255, 246, 226, 0.45), transparent);
+      }
+      @keyframes loadingShine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+      #loading .label { color: rgba(255, 246, 226, 0.7); }
       #sound {
         position: fixed; right: 16px; bottom: 16px; width: 44px; height: 44px;
         font-size: 20px; border: 0; border-radius: 50%; cursor: pointer;
@@ -143,6 +167,13 @@
     <div id="credit"></div>
     <button id="scene"></button>
     <button id="sound" aria-label="切換聲音">🔈</button>
+    <div id="loading" role="progressbar" aria-label="載入中">
+      <div class="box">
+        <div class="title">MEADOW BOT</div>
+        <div class="bar"><i style="width: 5%"></i></div>
+        <div class="label">載入程式…</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

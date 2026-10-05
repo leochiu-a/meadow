@@ -240,7 +240,8 @@ function rainbowCrossing() {
 // Decades on, few blocks stand whole: most are gutted shells, many have come down.
 const RUINS = (r) => (r < 0.35 ? 'collapsed' : r < 0.85 ? 'shell' : 'none')
 
-function build(scene) {
+async function build(scene, progress) {
+  await progress(0, '鋪設街道…')
   setTerrain(cityTerrain)
   const rainbow = rainbowCrossing()
   const { mesh, cracks, groundAt, overgrownAt } = createCityGround(data, { wild: reclaimed, rainbow })
@@ -266,6 +267,7 @@ function build(scene) {
   for (const [x, z] of rectSamples(towerBase[0] + (tdx * towerLen) / 2, towerBase[1] + (tdz * towerLen) / 2, tdz, -tdx, 10, towerLen + 10, 30)) taken.mark(x, z)
   const underTower = (pts) => pts.some(([x, z]) => taken.has(x, z))
 
+  await progress(0.02, '蓋起街區…')
   // Mapped buildings at their real size and height; the Red House keeps its brick.
   // The map draws station entrances as small buildings; the canopy stands there instead.
   // Renamed cinemas for the Wuchang Street fronts, one per qualifying building.
@@ -323,6 +325,7 @@ function build(scene) {
     taken.polygon(b.pts)
   }
 
+  await progress(0.07, '擺放街景…')
   // MRT Ximen exits where and how the map draws them.
   for (const e of data.entrances.filter((e) => e.name?.includes('捷運'))) {
     const exit = exitPlan(e)
@@ -429,6 +432,7 @@ function build(scene) {
     screens++
   }
 
+  await progress(0.08, '填滿店屋…')
   // Shophouses fill the frontage the map, the exits and the screens leave empty.
   alongKerbs(
     () => range(5.5, 8.5),
@@ -470,6 +474,7 @@ function build(scene) {
     },
   )
 
+  await progress(0.1, '合併模型…')
   scene.add(batchStatic(city), city, flushCityParts())
 
   // --- Nature taking the streets back ---
@@ -478,8 +483,11 @@ function build(scene) {
   for (const pts of cracks) for (const [x, z] of pts) crackCells.add(cellKey(x, z))
   const bounds = [minX + 1, maxX - 1, minZ + 1, maxZ - 1]
   const area = (maxX - minX) * (maxZ - minZ)
-  scene.add(createGrass({ bounds, target: Math.round(area * 26), place: cityGrass(blocked, groundAt, overgrownAt, crackCells) }))
+  const grow = (f) => progress(0.14 + 0.46 * f, '讓植物長回街上…')
+  scene.add(await createGrass({ bounds, target: Math.round(area * 26), place: cityGrass(blocked, groundAt, overgrownAt, crackCells), progress: grow }))
+  await progress(0.87, '開出野花…')
   scene.add(createFlowers({ bounds, target: Math.round(area * 1.2), place: cityFlowers(blocked, overgrownAt) }))
+  await progress(0.91, '種下樹木…')
   // Trees seeded in the streets themselves, thickest where the street has gone wild, but
   // never crowding the station exits.
   let trees = 0
@@ -501,6 +509,7 @@ function build(scene) {
   scene.add(dust())
 
   // Every collider is in place now: plan routes on them, and draw the minimap from them.
+  await progress(0.99, '規劃路線…')
   const nav = createNavGrid(data.bounds)
   const { animals, events } = strays(scene, nav, (x, z) => overgrownAt(x, z) < 0.45)
   const relics = relicSpots(nav)
