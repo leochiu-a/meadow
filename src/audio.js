@@ -6,6 +6,10 @@
 const PENTATONIC = [0, 2, 4, 7, 9]
 // The mixer's channels, each with its own volume (0–1) on top of the master.
 export const CHANNELS = ['music', 'ambience', 'weather', 'animals', 'robot', 'ui']
+// The default mix, balanced from measured levels: the music leads, wind and the robot's
+// motor (both constant) sit well under it, rain a little under, and the short sounds
+// (animal calls, the radar and the find chime) stay full so they cut through.
+export const DEFAULT_LEVELS = { master: 1, music: 1, ambience: 0.5, weather: 0.8, animals: 1, robot: 0.35, ui: 1 }
 const midiToHz = (m) => 440 * 2 ** ((m - 69) / 12)
 const rand = (a, b) => a + Math.random() * (b - a)
 
@@ -33,7 +37,7 @@ export function createAudio(ambience = 'meadow', music = null, levels = {}) {
   let started = false
   const sfx = {}
   // Volume per channel plus 'master'; the user's mixer settings, applied once audio exists.
-  const level = { master: 1, ...Object.fromEntries(CHANNELS.map((c) => [c, 1])), ...levels }
+  const level = { ...DEFAULT_LEVELS, ...levels }
   // Each channel: dry goes straight out, wet also feeds the room reverb.
   const bus = {}
   const timers = { bird: 2, creak: 6, rattle: 14, crow: 9 }
@@ -174,7 +178,7 @@ export function createAudio(ambience = 'meadow', music = null, levels = {}) {
     src.buffer = await ctx.decodeAudioData(data)
     src.loop = true
     const g = ctx.createGain()
-    g.gain.value = 0.3
+    g.gain.value = 0.4
     src.connect(g).connect(bus.music.dry)
     src.start()
   }

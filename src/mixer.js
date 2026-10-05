@@ -1,9 +1,10 @@
 import { createElement, SlidersHorizontal } from 'lucide'
-import { CHANNELS } from './audio.js'
+import { CHANNELS, DEFAULT_LEVELS } from './audio.js'
 import { text } from './i18n.js'
 
 // Sound mixer: a sliders button beside the sound toggle opens a panel with a slider for the
-// master volume and one per channel. Settings are kept in this browser.
+// master volume and one per channel, and a button back to the default mix. Settings are
+// kept in this browser.
 const KEY = 'meadow-bot:mixer'
 
 export function loadLevels() {
@@ -25,24 +26,48 @@ export function createMixer(audio, levels) {
   const panel = document.createElement('div')
   panel.id = 'mixer'
   panel.innerHTML = `<div class="ribbon">${text.mixer.title}</div>`
+  const save = () => {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(levels))
+    } catch {
+      // Storage blocked: the levels last for this visit.
+    }
+  }
+  const sliders = {}
   for (const name of ['master', ...CHANNELS]) {
-    const value = Math.round((levels[name] ?? 1) * 100)
     const row = document.createElement('label')
-    row.innerHTML = `<span>${text.mixer[name]}</span><input type="range" min="0" max="100" value="${value}"><output>${value}%</output>`
+    row.innerHTML = `<span>${text.mixer[name]}</span><input type="range" min="0" max="100"><output></output>`
     const input = row.querySelector('input')
     const output = row.querySelector('output')
-    input.addEventListener('input', () => {
+    const show = (value) => {
+      input.value = Math.round(value * 100)
       output.textContent = `${input.value}%`
+    }
+    show(levels[name] ?? DEFAULT_LEVELS[name])
+    input.addEventListener('input', () => {
       levels[name] = input.value / 100
+      show(levels[name])
       audio.setLevel(name, levels[name])
-      try {
-        localStorage.setItem(KEY, JSON.stringify(levels))
-      } catch {
-        // Storage blocked: the levels last for this visit.
-      }
+      save()
     })
+    sliders[name] = show
     panel.appendChild(row)
   }
+  const reset = document.createElement('button')
+  reset.className = 'reset'
+  reset.textContent = text.mixer.reset
+  // Back to the default mix: forget the saved levels, so later defaults apply too.
+  reset.addEventListener('click', () => {
+    for (const [name, show] of Object.entries(sliders)) {
+      delete levels[name]
+      show(DEFAULT_LEVELS[name])
+      audio.setLevel(name, DEFAULT_LEVELS[name])
+    }
+    try {
+      localStorage.removeItem(KEY)
+    } catch {}
+  })
+  panel.appendChild(reset)
   document.body.appendChild(panel)
 
   const toggle = (open = !panel.classList.contains('open')) => {
