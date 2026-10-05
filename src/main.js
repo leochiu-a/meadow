@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { createElement, Volume, Volume2, VolumeX } from 'lucide'
 import meadow from './meadow.js'
 import ximending from './ximending.js'
 import { createRobot } from './robot.js'
@@ -19,6 +20,8 @@ import { lang, text, setLang } from './i18n.js'
 // The page's own chrome, in the player's language.
 document.getElementById('hint').textContent = text.hint
 document.getElementById('sound').setAttribute('aria-label', text.sound)
+const soundIcon = (icon) => document.getElementById('sound').replaceChildren(createElement(icon))
+soundIcon(Volume)
 document.getElementById('loading').setAttribute('aria-label', text.loading.aria)
 
 const renderer = new THREE.WebGLRenderer({ powerPreference: 'high-performance', antialias: false, stencil: false })
@@ -108,7 +111,7 @@ const weather = createWeather((delay) => audio.thunder(delay))
 const soundButton = document.getElementById('sound')
 const startAudio = () => {
   audio.start()
-  soundButton.textContent = audio.enabled ? '🔊' : '🔇'
+  soundIcon(audio.enabled ? Volume2 : VolumeX)
   document.getElementById('hint').classList.add('dim')
 }
 addEventListener('pointerdown', startAudio, { once: true })
@@ -126,7 +129,7 @@ sceneButton.addEventListener('pointerdown', (e) => {
 })
 soundButton.addEventListener('pointerdown', (e) => {
   e.stopPropagation()
-  soundButton.textContent = audio.toggle() ? '🔊' : '🔇'
+  soundIcon(audio.toggle() ? Volume2 : VolumeX)
 })
 // Switching language reloads too, back into the same scene.
 const langButton = document.getElementById('lang')

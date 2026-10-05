@@ -1,7 +1,8 @@
+import { createElement, SlidersHorizontal } from 'lucide'
 import { CHANNELS } from './audio.js'
 import { text } from './i18n.js'
 
-// Sound mixer: a 🎚️ button beside the sound toggle opens a panel with a slider for the
+// Sound mixer: a sliders button beside the sound toggle opens a panel with a slider for the
 // master volume and one per channel. Settings are kept in this browser.
 const KEY = 'meadow-bot:mixer'
 
@@ -16,7 +17,7 @@ export function loadLevels() {
 export function createMixer(audio, levels) {
   const button = document.createElement('button')
   button.id = 'mixer-button'
-  button.textContent = '🎚️'
+  button.append(createElement(SlidersHorizontal))
   button.setAttribute('aria-label', text.mixer.title)
   button.setAttribute('aria-expanded', 'false')
   document.getElementById('sound').before(button)
