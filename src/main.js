@@ -10,10 +10,16 @@ import { cutUniforms } from './cutaway.js'
 import { createMinimap } from './minimap.js'
 import { createOrbit } from './orbit.js'
 import { createWeather, createRain, applyWet, overcastEnvironment } from './weather.js'
-import { createScavenge } from './scavenge.js'
-import { createCollectionUI } from './collection.js'
+import { createScavenge, foundIn } from './scavenge.js'
+import { RELICS } from './relics.js'
+import { createTimeline } from './timeline.js'
 import { createStory } from './story.js'
+import { ECHOES, createEchoes } from './echoes.js'
+import { createRoutine } from './routine.js'
+import { createCompanion } from './companion.js'
+import { createWishes } from './wishes.js'
 import { createMixer, loadLevels } from './mixer.js'
+import { useAudio } from './voice.js'
 import { loading, loaded, within } from './loading.js'
 import { lang, text, setLang } from './i18n.js'
 
@@ -72,21 +78,56 @@ await loading(0.75, text.loading.robot)
 const robot = createRobot(...def.start, def.tour, world.nav)
 scene.add(robot.object)
 
-// Scavenging: relics to find, a radar to find them with, and a book to keep them in.
+// The story's pieces: relics to find and recordings to hear, a timeline to keep them on,
+// the robot's daily routine, its dog, and the small unfinished things. Audio only exists
+// once the page has been clicked, so they reach it through `audio` when they play.
 let audio = null
 const scavenge = createScavenge(scene, sceneName, world.relics, {
-  onCollect: (def, found) => {
-    collection.collected(def)
+  onCollect: (def) => {
+    timeline.collected(def)
     audio.chime()
-    if (found.size === scavenge.defs.length) setTimeout(() => story.relicsDone(), 2500)
+    story.collected()
   },
   onPing: (signal) => audio.ping(signal),
 })
-const collection = createCollectionUI(scavenge.defs, scavenge.found)
-const story = createStory(sceneName, world.story, {
-  allFound: () => scavenge.found.size === scavenge.defs.length,
+// What has been found in each scene: this one's live, the other's as it was left.
+const found = { ximending: foundIn('ximending'), meadow: foundIn('meadow'), [sceneName]: scavenge.found }
+const story = createStory(sceneName, world.landmarks, {
   goTo: (name) => (location.search = `?scene=${name}`),
+  beginRoutine: () => routine?.begin(),
+  play: (id) => echoes.replay(id),
+  letGo: () => audio.release(),
+  song: () => audio.song('box'),
+  hasLetters: () => found.meadow.has('letter'),
 })
+// Recordings pan to the screen: `right` is the camera's rightward direction on the ground.
+const echoes = createEchoes({ echo: (id, where) => audio.echo(id, { ...where, right: [Math.cos(orbit.yaw), -Math.sin(orbit.yaw)] }) }, world.echoes, {
+  isOpen: (def) => story.open(def),
+  onStart: (def, spot) => companion.heard(def, spot),
+  onHeard: (def, heard) => {
+    story.heard(def, heard)
+    timeline.refresh()
+  },
+})
+const timeline = createTimeline({
+  relics: [...RELICS.ximending, ...RELICS.meadow],
+  echoes: ECHOES,
+  has: (e) => (e.kind === 'relic' ? found[e.scene].has(e.id) : echoes.heard.has(e.id)),
+  // The village's things only once the robot is on its way there.
+  shown: (e) => (e.kind === 'relic' ? e.scene === sceneName || story.city || found[e.scene].size > 0 : story.open(e)),
+  released: () => story.released,
+  onReplay: (id) => echoes.replay(id),
+})
+// Sounds the dog makes, alongside the scene's own.
+const petEvents = []
+const companion = createCompanion(scene, world.nav, robot, petEvents)
+const routine =
+  sceneName === 'ximending'
+    ? createRoutine({ landmarks: world.landmarks, animals: world.animals, robot, onGreet: (a) => companion.greeted(a), onDone: () => story.begin() })
+    : null
+const wishes = createWishes(scene, sceneName, world.landmarks, { song: (timbre) => audio.song(timbre), wheels: () => audio.wheels() }, echoes.heard)
+// In the village the music box plays from the cottage now and then, as it does every evening.
+let musicBoxIn = 20
 await loading(0.77, text.loading.camera)
 const { composer, ao, setRain } = createComposer(renderer, scene, camera)
 
@@ -106,6 +147,7 @@ const minimap = world.minimap ? createMinimap(world.minimap, (x, z) => robot.goT
 // Browsers only allow audio after a user gesture, so the soundscape starts on first input.
 const levels = loadLevels()
 audio = createAudio(def.ambience, def.music, levels)
+useAudio(audio)
 createMixer(audio, levels)
 const weather = createWeather((delay) => audio.thunder(delay))
 const soundButton = document.getElementById('sound')
@@ -198,14 +240,30 @@ setTimeout(() => story.start(), 800)
 function step(dt) {
   windUniforms.uTime.value = t
   weather.update(dt)
+  // The robot stands still while the story log is up.
+  if (story.playing) robot.hold(0.1)
   robot.update(t, dt, orbit.yaw)
   const goal = story.objective
-  scavenge.update(t, dt, robot.position, !robot.touring, goal)
+  const busy = story.playing || !!echoes.playing
+  // In the city the radar only switches on once the story has begun.
+  const radar = sceneName === 'meadow' || story.begun
+  scavenge.update(t, dt, robot.position, !robot.touring, goal, echoes.beacons(), radar)
+  echoes.update(robot.position, story.playing)
   story.update(robot.position)
-  collection.setSignal(scavenge.signal)
-  collection.setObjective(goal?.label)
+  timeline.setRadar(radar)
+  timeline.setSignal(scavenge.signal)
+  timeline.setObjective(goal?.label)
   world.update(t, dt, robot.position)
+  routine?.update(dt, { speed: robot.speed, rain: weather.rain, events: world.events })
+  companion.update(t, dt, busy)
+  wishes.update(dt, robot.position, robot.speed)
+  if (world.landmarks.cottage && !busy && (musicBoxIn -= dt) <= 0) {
+    const [cx, cz] = world.landmarks.cottage
+    musicBoxIn = Math.hypot(robot.position.x - cx, robot.position.z - cz) < 18 ? 110 : 5
+    if (musicBoxIn > 5) audio.song('box')
+  }
   if (world.events) for (const e of world.events.splice(0)) audio.cue(e, robot.position)
+  for (const e of petEvents.splice(0)) audio.cue(e, robot.position)
   audio.update(dt, { listener: robot.position, robotSpeed: robot.speed, voices: world.voices, rain: weather.rain })
 
   // Camera trails the robot with a gentle drift, like a handheld miniature shot.

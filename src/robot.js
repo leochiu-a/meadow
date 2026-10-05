@@ -101,6 +101,8 @@ export function createRobot(x, z, tour, nav) {
   let target = null
   let mode = null
   let replans = 0
+  // Seconds left standing still of its own accord (waiting at a crossing).
+  let hold = 0
 
   addEventListener('keydown', (e) => keys.add(e.key.toLowerCase()))
   addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()))
@@ -148,6 +150,10 @@ export function createRobot(x, z, tour, nav) {
     get touring() {
       return idle > IDLE_BEFORE_TOUR
     },
+    // Stops where it is for `seconds`, whatever it was doing, then carries on.
+    hold(seconds) {
+      hold = seconds
+    },
     // viewYaw: the camera's angle around the robot, so the keys steer relative to the screen.
     update(t, dt, viewYaw = 0) {
       const right = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0)
@@ -190,6 +196,10 @@ export function createRobot(x, z, tour, nav) {
             } else plan(target, mode)
           }
         }
+      }
+      if (hold > 0) {
+        hold -= dt
+        dir = null
       }
       const targetSpeed = dir ? SPEED * pace : 0
       speed += (targetSpeed - speed) * Math.min(1, dt * 6)

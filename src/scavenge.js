@@ -18,6 +18,9 @@ function load(sceneName) {
   }
 }
 
+// What has been found in a scene, read fresh (the timeline shows both scenes' finds).
+export const foundIn = (sceneName) => load(sceneName)
+
 function save(sceneName, found) {
   try {
     localStorage.setItem(storageKey(sceneName), JSON.stringify([...found]))
@@ -79,8 +82,9 @@ export function createScavenge(scene, sceneName, placements = [], { onCollect, o
       return signal
     },
     // manual: the player is steering (finds only count then). target: a story destination
-    // { x, z } the radar points to instead once there is one.
-    update(t, dt, robot, manual, target = null) {
+    // { x, z } the radar points to instead once there is one. beacons: other things the
+    // radar picks up ({ x, z }: recordings not heard yet); radar: false keeps it silent.
+    update(t, dt, robot, manual, target = null, beacons = [], radar = true) {
       let nearest = Infinity
       for (let i = lying.length - 1; i >= 0; i--) {
         const r = lying[i]
@@ -112,8 +116,9 @@ export function createScavenge(scene, sceneName, placements = [], { onCollect, o
           onCollect?.(r.def, found)
         }
       }
-      signal = manual && nearest < RADAR ? 1 - nearest / RADAR : 0
-      if (target) signal = Math.max(0, 1 - Math.hypot(robot.x - target.x, robot.z - target.z) / 80)
+      for (const b of beacons) nearest = Math.min(nearest, Math.hypot(robot.x - b.x, robot.z - b.z))
+      signal = radar && manual && nearest < RADAR ? 1 - nearest / RADAR : 0
+      if (radar && target) signal = Math.max(0, 1 - Math.hypot(robot.x - target.x, robot.z - target.z) / 80)
       pingIn -= dt
       if (signal > 0 && pingIn <= 0) {
         pingIn = 1.5 - 1.3 * signal

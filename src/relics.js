@@ -245,18 +245,18 @@ const MODELS = {
   },
 }
 
-// In story order: each find is a memory DLV-06 recovers, from the first flood warnings to
-// the night of the last train (see story.js). The meadow's tell of life after the move.
+// When each relic is from, for its place on the timeline: a date, a minute on the night of
+// the last train, or null for the village's things from the years after.
 const DATES = {
   ximending: [
-    ['ticket', '2049.07'], ['bubbleTea', '2050.06'], ['vinyl', '2051.08'], ['neon', '2052.09'], ['cassette', '2052.10'],
-    ['sneaker', '2053.03'], ['skateboard', '2053.11'], ['noodleBowl', '2054.04'], ['card', '2054.04'], ['flipPhone', '2054.04'],
+    ['ticket', '2049-07-22'], ['bubbleTea', '2050'], ['vinyl', '2051'], ['neon', '2052-09-14'], ['cassette', '2052-10'],
+    ['sneaker', '2053-03'], ['noodleBowl', '2054-04-28'], ['flipPhone', '2054-04-30 22:50'], ['skateboard', '2054-04-30 23:20'], ['card', '2054-04-30 23:38'],
   ],
-  meadow: [['pocketWatch', '2054.05'], ['oldKey', '2058'], ['tinCar', '2066'], ['letter', '2079'], ['musicBox', '2085']],
+  meadow: [['pocketWatch', '2054-04-30 23:40'], ['oldKey', null], ['tinCar', null], ['letter', null], ['musicBox', null]],
 }
-// Each relic's name, the book's clue to where it lies, and its memory, in the player's language.
+// Each relic's name, the book's clue to where it lies, and what its card says, in the player's language.
 export const RELICS = Object.fromEntries(
-  Object.entries(DATES).map(([scene, list]) => [scene, list.map(([id, date]) => ({ id, date, ...text.relics[id] }))]),
+  Object.entries(DATES).map(([scene, list]) => [scene, list.map(([id, when]) => ({ id, scene, when, ...text.relics[id] }))]),
 )
 
 export const relicModel = (id) => MODELS[id]()

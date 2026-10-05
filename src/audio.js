@@ -1,15 +1,25 @@
 // Soundscape built with the Web Audio API: wind, rustling leaves, birdsong, animal calls
 // and the robot's motor, all synthesized, under the scene's background music track.
 // ambience 'city' swaps the meadow's breeze for wind whistling through dead streets,
-// creaking signs, rattling shutters and crows.
+// creaking signs, rattling shutters and crows. DLV-06's recordings (see echo-audio.js) and
+// the song play on their own story channel, with the rest of the mix ducked under them.
+// The world is mixed to mono, the same in both speakers; only the recordings are in stereo,
+// so the past opens up around the listener while the present stays flat.
+
+import { playEcho, playSong, playWheels } from './echo-audio.js'
+import { ECHO_IDS } from './echoes.js'
 
 const PENTATONIC = [0, 2, 4, 7, 9]
 // The mixer's channels, each with its own volume (0–1) on top of the master.
-export const CHANNELS = ['music', 'ambience', 'weather', 'animals', 'robot', 'ui']
+// 'voice' is the robot's speech (see voice.js): the browser speaks it, outside this graph.
+export const CHANNELS = ['music', 'ambience', 'weather', 'animals', 'robot', 'voice', 'echo', 'ui']
 // The default mix, balanced from measured levels: the music leads, wind and the robot's
 // motor (both constant) sit well under it, rain a little under, and the short sounds
-// (animal calls, the radar and the find chime) stay full so they cut through.
-export const DEFAULT_LEVELS = { master: 1, music: 1, ambience: 0.5, weather: 0.8, animals: 1, robot: 0.35, ui: 1 }
+// (animal calls, the radar and the find chime) stay full so they cut through, as do the
+// recordings, which have the stage to themselves while they play.
+export const DEFAULT_LEVELS = { master: 1, music: 1, ambience: 0.5, weather: 0.8, animals: 1, robot: 0.35, voice: 0.8, echo: 1, ui: 1 }
+// While a recording or the song plays, the world around it drops to this much.
+const DUCK = { music: 0.15, ambience: 0.25, weather: 0.35, animals: 0.3, robot: 0.6 }
 const midiToHz = (m) => 440 * 2 ** ((m - 69) / 12)
 const rand = (a, b) => a + Math.random() * (b - a)
 
@@ -43,12 +53,23 @@ export function createAudio(ambience = 'meadow', music = null, levels = {}) {
   const timers = { bird: 2, creak: 6, rattle: 14, crow: 9 }
   const animalTimers = new Map()
 
+  // Until when (audio clock) the mix stays ducked.
+  let duckUntil = 0
+  let ducked = false
+
   const masterTarget = () => (enabled ? 0.9 * level.master : 0)
-  function setLevel(name, value) {
+  const busTarget = (name) => level[name] * (ducked ? (DUCK[name] ?? 1) : 1)
+  function setLevel(name, value, ramp = 0.05) {
     level[name] = value
     if (!ctx) return
-    if (name === 'master') master.gain.setTargetAtTime(started ? masterTarget() : 0, ctx.currentTime, 0.05)
-    else for (const node of Object.values(bus[name])) node.gain.setTargetAtTime(value, ctx.currentTime, 0.05)
+    if (name === 'master') master.gain.setTargetAtTime(started ? masterTarget() : 0, ctx.currentTime, ramp)
+    else if (bus[name]) for (const node of Object.values(bus[name])) node.gain.setTargetAtTime(busTarget(name), ctx.currentTime, ramp)
+  }
+  function duck(seconds) {
+    duckUntil = Math.max(duckUntil, ctx.currentTime + seconds)
+    if (ducked) return
+    ducked = true
+    for (const name of Object.keys(DUCK)) setLevel(name, level[name], 0.35)
   }
 
   function loopNoise(kind, seconds = 4) {
@@ -69,7 +90,7 @@ export function createAudio(ambience = 'meadow', music = null, levels = {}) {
     osc.start()
   }
 
-  // Distant sounds are quieter; everything plays in mono, so nothing sits left or right.
+  // Distant sounds are quieter; the world plays in mono, so nothing in it sits left or right.
   function spatial(x, z, listener, channel) {
     const d = Math.hypot(x - listener.x, z - listener.z)
     const g = ctx.createGain()
@@ -80,12 +101,14 @@ export function createAudio(ambience = 'meadow', music = null, levels = {}) {
 
   function build() {
     ctx = new AudioContext()
-    // One channel out: both speakers play the same mix.
     master = ctx.createGain()
-    master.channelCount = 1
-    master.channelCountMode = 'explicit'
     master.gain.value = 0
     master.connect(ctx.destination)
+    // The world folds down to one channel here, then plays the same in both speakers.
+    const mono = ctx.createGain()
+    mono.channelCount = 1
+    mono.channelCountMode = 'explicit'
+    mono.connect(master)
 
     // Gentle room so everything sits in the same space.
     const verb = ctx.createConvolver()
@@ -95,16 +118,18 @@ export function createAudio(ambience = 'meadow', music = null, levels = {}) {
     verb.buffer = ir
     const verbGain = ctx.createGain()
     verbGain.gain.value = 0.25
-    verb.connect(verbGain).connect(master)
+    verb.connect(verbGain).connect(mono)
     // A short decaying noise tick, the raw material for rattles, wingbeats and barks.
     sfx.click = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.03), ctx.sampleRate)
     const tick = sfx.click.getChannelData(0)
     for (let i = 0; i < tick.length; i++) tick[i] = (Math.random() * 2 - 1) * (1 - i / tick.length) ** 2
-    for (const c of CHANNELS) {
+    for (const c of CHANNELS.filter((c) => c !== 'voice')) {
       const dry = ctx.createGain()
       const wet = ctx.createGain()
-      dry.connect(master)
-      wet.connect(master)
+      // The story channel skips the fold-down: recordings keep their stereo.
+      const out = c === 'echo' ? master : mono
+      dry.connect(out)
+      wet.connect(out)
       wet.connect(verb)
       bus[c] = { dry, wet }
       setLevel(c, level[c])
@@ -541,6 +566,10 @@ export function createAudio(ambience = 'meadow', music = null, levels = {}) {
     get enabled() {
       return enabled
     },
+    // How loud the robot's voice should be, 0 while sound is off.
+    get voiceVolume() {
+      return started && enabled ? level.master * level.voice : 0
+    },
     // Mixer volume (0–1) for 'master' or one of CHANNELS.
     setLevel,
     start() {
@@ -576,6 +605,44 @@ export function createAudio(ambience = 'meadow', music = null, levels = {}) {
         osc.stop(t + i * 0.08 + 0.13)
       })
     },
+    /**
+     * Recording `id` from DLV-06's buffer; where: { at, path, listener }. Returns how long it
+     * lasts in seconds, 0 when sound is off (the subtitles then pace themselves).
+     */
+    echo(id, where) {
+      if (!started || !enabled) return 0
+      const t = ctx.currentTime + 0.6
+      const length = playEcho(ctx, bus.echo.wet, id, t, where)
+      duck(length + 1)
+      return length
+    },
+    // Letting the recordings go: all of them at once, faint, rising away until they are gone.
+    release() {
+      if (!started || !enabled) return
+      const t = ctx.currentTime + 0.3
+      const away = ctx.createBiquadFilter()
+      away.type = 'highpass'
+      away.frequency.setValueAtTime(80, t)
+      away.frequency.exponentialRampToValueAtTime(7000, t + 16)
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.5, t)
+      g.gain.linearRampToValueAtTime(0, t + 18)
+      away.connect(g).connect(bus.echo.wet)
+      ECHO_IDS.forEach((id, i) => playEcho(ctx, away, id, t + i * 0.45, {}, 0.35))
+      duck(19)
+    },
+    // 〈紅樓之夜〉 from a music box ('box') or the robot's speaker ('speaker'), on the story
+    // channel with the recordings. Returns its length.
+    song(timbre) {
+      if (!started || !enabled) return 0
+      const length = playSong(ctx, bus.echo.wet, ctx.currentTime + 0.3, timbre, { peak: timbre === 'box' ? 0.12 : 0.08 })
+      duck(length + 0.8)
+      return length
+    },
+    // The skaters' wheels going round once more.
+    wheels() {
+      if (started && enabled) playWheels(ctx, bus.echo.wet, ctx.currentTime + 0.1)
+    },
     // A one-off sound an animal made: { kind, x, z }.
     cue({ kind, x, z }, listener) {
       if (started && enabled) CUES[kind]?.(x, z, listener)
@@ -592,6 +659,10 @@ export function createAudio(ambience = 'meadow', music = null, levels = {}) {
     update(dt, { listener, robotSpeed, voices = {}, rain = 0 }) {
       if (!started || !enabled) return
       const now = ctx.currentTime
+      if (ducked && now > duckUntil) {
+        ducked = false
+        for (const name of Object.keys(DUCK)) setLevel(name, level[name], 0.8)
+      }
       sfx.rainGain.gain.setTargetAtTime(rain * 0.9, now, 0.5)
       sfx.motorA.frequency.setTargetAtTime(70 + robotSpeed * 55, now, 0.05)
       sfx.motorB.frequency.setTargetAtTime(141 + robotSpeed * 90, now, 0.05)

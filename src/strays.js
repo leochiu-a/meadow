@@ -165,9 +165,11 @@ export function createCat(x, z, nav, emit) {
 
 // Taiwanese street dog (土狗): lean and long-legged, deep chest and tucked belly, a wedge
 // head with big upright ears, sickle tail carried high. Ambles round its patch; when the
-// robot passes it trots over, barks once and follows it for a while.
-export function createDog(x, z, nav, emit) {
-  const [colour, chest] = pick([['#b98a4e', '#e6cfa4'], ['#22201d', '#3a3430'], ['#c9a46e', '#efe0c2']])
+// robot passes it trots over, barks once and follows it for a while. Once adopted it is
+// the robot's companion and follows it everywhere. `coat` picks its colouring (0–2).
+const DOG_COATS = [['#b98a4e', '#e6cfa4'], ['#22201d', '#3a3430'], ['#c9a46e', '#efe0c2']]
+export function createDog(x, z, nav, emit, coat = Math.floor(rand() * DOG_COATS.length)) {
+  const [colour, chest] = DOG_COATS[coat]
   const fur = furMaterial('#ffffff', true)
   const solid = mat(colour)
   const root = new THREE.Group()
@@ -239,20 +241,48 @@ export function createDog(x, z, nav, emit) {
   let heading = rand() * 6
   let stride = 0
   const phase = rand() * 10
+  // Where it is listening, and for how long more: it stops and looks there.
+  let listening = null
   return {
     object: root,
     position: pos,
+    coat,
+    get companion() {
+      return state === 'companion'
+    },
+    // From now on it stays with the robot.
+    adopt() {
+      state = 'companion'
+    },
+    // Pricks up at a sound from (x, z) for `seconds`; barks back if `bark`.
+    listen(x, z, seconds, bark = false) {
+      listening = { x, z, left: seconds }
+      if (bark) emit('bark', pos.x, pos.z)
+    },
     update(t, dt, robot) {
       bored = Math.max(0, bored - dt)
       const toRobot = Math.hypot(robot.x - pos.x, robot.z - pos.z)
-      if (state !== 'follow' && !bored && toRobot < 7 && nav.sightline(pos.x, pos.z, robot.x, robot.z)) {
+      if (listening && (listening.left -= dt) <= 0) listening = null
+      if (state === 'companion') {
+        // Left far behind (a jump across the map): catch up from just out of sight.
+        if (toRobot > 24) {
+          const s = nav.spotNear(robot.x, robot.z, 4, 8)
+          if (s) pos.set(s[0], 0, s[1])
+        }
+      } else if (state !== 'follow' && !bored && toRobot < 7 && nav.sightline(pos.x, pos.z, robot.x, robot.z)) {
         state = 'follow'
         timer = range(8, 16)
         emit('bark', pos.x, pos.z)
       }
       let speed = 0
       let facing = null
-      if (state === 'follow') {
+      if (state === 'companion') {
+        if (toRobot > 1.9 && !listening) {
+          speed = Math.min(3.8, 0.8 + (toRobot - 1.9) * 1.4)
+          stepToward(pos, [robot.x, robot.z], speed, dt, 0.25)
+        }
+        facing = listening ? [listening.x, listening.z] : [robot.x, robot.z]
+      } else if (state === 'follow') {
         timer -= dt
         // Lose interest after a while, or once the robot is out of sight.
         if (timer <= 0 || toRobot > 14 || !nav.sightline(pos.x, pos.z, robot.x, robot.z)) {
@@ -290,8 +320,11 @@ export function createDog(x, z, nav, emit) {
         l.knee.rotation.z = l.rest[1] + Math.max(0, -swing) * (l.hind ? 0.4 : -0.6)
       })
       // Tail wags hard while it has company; head dips to sniff when it is alone.
-      tail.rotation.x = Math.sin(t * (state === 'follow' ? 16 : 2) + phase) * (state === 'follow' ? 0.45 : 0.12)
-      head.rotation.z = turnToward(head.rotation.z, state === 'rest' && Math.sin(t * 0.4 + phase) > 0.3 ? -0.5 : 0.1, Math.min(1, dt * 4))
+      const company = state === 'follow' || (state === 'companion' && !listening)
+      tail.rotation.x = Math.sin(t * (company ? 16 : 2) + phase) * (company ? 0.45 : 0.12)
+      // Head dips to sniff when it is alone, lifts when it listens.
+      const headTo = listening ? 0.35 : state === 'rest' && Math.sin(t * 0.4 + phase) > 0.3 ? -0.5 : 0.1
+      head.rotation.z = turnToward(head.rotation.z, headTo, Math.min(1, dt * 4))
       root.rotation.y = turnToward(root.rotation.y, heading, Math.min(1, dt * 7))
       root.position.set(pos.x, heightAt(pos.x, pos.z) + (moving ? Math.abs(Math.sin(stride)) * 0.03 : 0), pos.z)
     },

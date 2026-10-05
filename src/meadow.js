@@ -71,7 +71,7 @@ async function build(scene, progress) {
   for (const [x, z, o] of houses) scene.add(props.cottage(x, z, o))
   // Xiaomai's house: the cottage with the pergola, where the last order is bound.
   scene.add(props.mailbox(...MAILBOX))
-  scene.add(props.stall(-6, -21.5, 0.2, '#d94b4b'))
+  scene.add(props.stall(...STALL, 0.2, '#d94b4b'))
   scene.add(props.stringLights([-11, -15], [-2, -25]))
   scene.add(props.stringLights([3, -16], [13, -25.5], 3.9))
   scene.add(props.shed(3.2, -16.8, -0.25))
@@ -210,7 +210,9 @@ async function build(scene, progress) {
   const nav = createNavGrid({ minX: -46, maxX: 46, minZ: -40, maxZ: 42 })
   return {
     nav,
-    story: { finale: nav.snap(MAILBOX[0], MAILBOX[1] + 1.2) },
+    // The mailbox the letter is for, the cottage the music box plays in, and the noodle
+    // stall A-Zhong set up again up here.
+    landmarks: { finale: nav.snap(MAILBOX[0], MAILBOX[1] + 1.2), cottage: MAILBOX, stall: nav.snap(STALL[0], STALL[1] + 1.8) },
     relics: RELIC_SPOTS.map(([id, x, z]) => {
       const [sx, sz] = nav.snap(x, z)
       return { id, x: sx, z: sz }
@@ -234,6 +236,7 @@ const RELIC_SPOTS = [
   ['letter', -4.5, -18.5],
 ]
 const MAILBOX = [0.9, -24.4]
+const STALL = [-6, -21.5]
 
 // Sunny overgrown village: warm low sun, green-tinted shade, a grassy horizon.
 export default {

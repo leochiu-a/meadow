@@ -275,6 +275,8 @@ async function build(scene, progress) {
   const cinemaNames = ['國寶影城', '日昇戲院', '樂生影城', '豪景戲院']
   let billboards = 3
   let graffitiDone = false
+  // Where 日昇戲院 stands: the cinema from the ticket stub.
+  let sunrise = null
   const isEntrance = (pts) => data.entrances.some((e) => pointInPolygon(e.x, e.z, pts) || pts.some(([x, z]) => Math.hypot(x - e.x, z - e.z) < 3))
   for (const b of data.buildings) {
     if (underTower(b.pts) || isEntrance(b.pts)) continue
@@ -308,7 +310,9 @@ async function build(scene, progress) {
     if (cinemaFace && ruin === 'none' && cinemaNames.length && cinemaFace.len > 5) {
       const f = cinemaFace
       // Posters at eye level along the front, where the camera's steep angle can read them.
-      city.add(cinemaFront(f.mx, f.mz, f.yaw, f.len * 0.9, 0.8, cinemaNames.shift()))
+      const name = cinemaNames.shift()
+      if (name === '日昇戲院') sunrise = [f.mx, f.mz]
+      city.add(cinemaFront(f.mx, f.mz, f.yaw, f.len * 0.9, 0.8, name))
     }
     if (emeiFace && ruin === 'none' && billboards > 0 && emeiFace.len > 6 && rand() < 0.6) {
       const f = emeiFace
@@ -514,18 +518,21 @@ async function build(scene, progress) {
   const nav = createNavGrid(data.bounds)
   const { animals, events } = strays(scene, nav, (x, z) => overgrownAt(x, z) < 0.45)
   const relics = relicSpots(nav)
+  const echoes = echoSpots(nav)
   return {
     update(t, dt, robot) {
       for (const a of animals) a.update(t, dt, robot)
     },
     events,
+    animals,
     voices: {
       cat: animals.filter((a) => a.kind === 'cat').map((a) => a.position),
       dog: animals.filter((a) => a.kind === 'dog').map((a) => a.position),
       pigeon: animals.filter((a) => a.kind === 'pigeon').map((a) => a.positions[0]),
     },
     relics,
-    story: { finale },
+    echoes,
+    landmarks: landmarks(nav, rainbow, sunrise, echoes),
     nav,
     minimap: { bounds: data.bounds, title: text.minimap.ximending, draw: (ctx, px) => drawPlan(ctx, px, nav) } }
 }
@@ -775,6 +782,64 @@ function drawPlan(ctx, px, nav) {
   ctx.imageSmoothingEnabled = true
   ctx.drawImage(tint(MAP.blockShade), ox, oy + 1.5, ex - ox, ey - oy)
   ctx.drawImage(tint(MAP.block), ox, oy, ex - ox, ey - oy)
+}
+
+// Where each of DLV-06's recordings was made (see echoes.js), and the way anything in it
+// moved: the ambulance up Hanzhong Street, the two people running opposite ways.
+function echoSpots(nav) {
+  const at = (a, b, k = 0.5) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]
+  const emei = crossing('漢中街', '峨眉街')
+  const wuchang = crossing('漢中街', '武昌街二段')
+  const cinemas = crossing('西寧南路', '武昌街二段')
+  const xiningEmei = crossing('西寧南路', '峨眉街')
+  const chengdu = crossing('漢中街', '成都路')
+  const chengduXining = crossing('西寧南路', '成都路')
+  const redHouse = centroid(data.buildings.find((b) => b.name?.includes('紅樓')).pts)
+  const outOfExit6 = (k) => [exit6.x + Math.sin(exit6.yaw) * (exit6.length / 2 + k), exit6.z + Math.cos(exit6.yaw) * (exit6.length / 2 + k)]
+  const chengduRoad = nearestOnRoad('成都路', exit6.x - 14, exit6.z)
+  const spots = {
+    R1: [chengduXining],
+    R2: [at(emei, xiningEmei, 0.55)],
+    R3: [at(emei, wuchang, 0.5), [chengdu, wuchang]],
+    R4: [[redHouse[0] + 9, redHouse[1] + 7]],
+    R5: [[chengduRoad.px, chengduRoad.pz]],
+    R6: [at(wuchang, cinemas, 0.3)],
+    R7: [at(wuchang, cinemas, 0.08)],
+    R8: [[redHouse[0] - 6, redHouse[1] + 13]],
+    R9: [at(chengdu, chengduXining, 0.4), [at(chengdu, chengduXining, 0.9), chengdu]],
+    R10: [at(chengdu, emei, 0.55), [at(chengdu, emei, 0.1), emei]],
+    R11: [outOfExit6(1.5)],
+    R12: [outOfExit6(8)],
+    R13: [[emei[0] - 26, emei[1]]],
+    R14: [start],
+  }
+  return Object.fromEntries(
+    Object.entries(spots).map(([id, [[x, z], path]]) => {
+      const [sx, sz] = nav.snap(x, z)
+      return [id, { x: sx, z: sz, path }]
+    }),
+  )
+}
+
+// Places the story and the robot's habits look for: the order's destination and where it
+// woke; the rainbow crossing it waits at and its old patrol (Emei, Hanzhong, Wuchang
+// Streets); and where the little unfinished things from the recordings can be done.
+function landmarks(nav, rainbow, sunrise, echoes) {
+  const at = (a, b, k = 0.5) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]
+  const emei = crossing('漢中街', '峨眉街')
+  const wuchang = crossing('漢中街', '武昌街二段')
+  const cinemas = crossing('西寧南路', '武昌街二段')
+  const xiningEmei = crossing('西寧南路', '峨眉街')
+  const snap = ([x, z]) => nav.snap(x, z)
+  return {
+    finale,
+    wake: start,
+    crossing: rainbow ? [rainbow.x, rainbow.z] : null,
+    patrol: [at(emei, xiningEmei, 0.35), at(emei, wuchang, 0.35), at(wuchang, cinemas, 0.5)].map(snap),
+    cinema: snap(sunrise ?? at(wuchang, cinemas, 0.6)),
+    redHouse: [echoes.R4.x, echoes.R4.z],
+    square: [echoes.R8.x, echoes.R8.z],
+  }
 }
 
 // Where each relic lies (see relics.js): by the landmark its memory belongs to.

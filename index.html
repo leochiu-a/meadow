@@ -92,16 +92,33 @@
         font-weight: 800; font-size: 15px; letter-spacing: 3px; color: #fff8e6; background: #d2643a;
         box-shadow: 0 0 0 2px #8a3a1e, 0 2px 0 2px rgba(80, 30, 10, 0.4); white-space: nowrap;
       }
-      #book .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; max-height: calc(100vh - 260px); overflow: auto; }
+      #book .rows { display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 290px); overflow: auto; }
+      #book h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: 2px; color: #b08a5a; }
+      /* One track per stretch of time, read left to right. */
+      #book .track { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
       #book .slot {
-        display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border: 0; border-radius: 12px;
-        cursor: pointer; background: #f1e4c4; color: inherit; font: inherit; font-weight: 700;
+        flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 84px; padding: 6px 4px; border: 0; border-radius: 12px;
+        cursor: pointer; background: #f1e4c4; color: inherit; font: inherit; font-weight: 700; font-size: 12px; line-height: 1.3;
       }
       #book .slot:hover { background: #ead7ac; }
-      #book .slot img { width: 72px; height: 72px; }
+      #book .slot img { width: 60px; height: 60px; }
+      #book .slot.echo { background: #e4e8d4; }
+      #book .slot.echo:hover { background: #d6dcc0; }
+      #book .icon { display: grid; place-items: center; width: 60px; height: 60px; color: #5e7a3a; }
+      #book .icon svg { width: 34px; height: 34px; }
+      #book .detail .icon { width: 96px; height: 96px; flex: none; }
+      #book .detail .icon svg { width: 48px; height: 48px; }
       #book .missing img, #book .detail img.unknown { filter: brightness(0) opacity(0.28); }
+      #book .missing .icon, #book .detail .icon.unknown { color: #c8b896; }
       #book .missing span { color: #a89070; }
-      #book .slot small, #book .detail small { color: #b08a5a; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+      #book .slot small, #book .detail small { color: #b08a5a; font-size: 11px; font-weight: 700; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+      #book .detail .transcript { white-space: pre-line; color: #6a5030; }
+      #book .detail .gone { color: #a08868; }
+      #book .detail .replay {
+        display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 5px 14px; border: 0; border-radius: 12px;
+        cursor: pointer; font: inherit; font-weight: 700; color: #fff8e6; background: #d2643a;
+      }
+      #book .detail .replay svg { width: 14px; height: 14px; }
       #book .detail small { display: block; }
       #book .detail { display: flex; gap: 14px; align-items: center; min-height: 96px; margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: #f6ecd4; }
       #book .detail img { width: 96px; height: 96px; flex: none; }
@@ -113,6 +130,38 @@
         font-size: 20px; line-height: 30px; cursor: pointer; background: transparent; color: #8a6a3e;
       }
       #radar.order { color: #b8352a; }
+      #radar.hidden { opacity: 0; pointer-events: none; }
+      /* A recording playing: what was detected, then the robot's transcript, over the scene. */
+      #echo {
+        position: fixed; left: 50%; bottom: 84px; transform: translate(-50%, 8px); z-index: 11; opacity: 0;
+        width: min(560px, calc(100vw - 32px)); text-align: center; pointer-events: none; transition: opacity 0.6s, transform 0.6s;
+      }
+      #echo.show { opacity: 1; transform: translate(-50%, 0); }
+      #echo .head { display: inline-block; padding: 3px 10px; border-radius: 6px; background: rgba(12, 14, 10, 0.7); font: 12px/1.6 ui-monospace, "SF Mono", Menlo, monospace; color: #9fe39a; }
+      #echo .sub { margin-top: 10px; min-height: 1.6em; font: 600 18px/1.6 "PingFang TC", "Heiti TC", system-ui, sans-serif; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 12px rgba(0, 0, 0, 0.6); }
+      /* The robot's running system messages, under the radar. */
+      #syslog { position: fixed; left: 50%; top: 58px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; z-index: 2; }
+      #syslog p {
+        margin: 0; padding: 3px 10px; border-radius: 6px; background: rgba(12, 14, 10, 0.62); white-space: nowrap;
+        font: 12px/1.6 ui-monospace, "SF Mono", Menlo, monospace; color: #9fe39a; animation: storyIn 0.4s ease-out both; transition: opacity 0.8s;
+      }
+      #syslog p.warn { color: #ffb454; }
+      #syslog p.out { opacity: 0; }
+      /* Today's schedule: a small paper card ticking off the robot's day. */
+      #routine {
+        position: fixed; right: 16px; top: 44px; padding: 22px 14px 10px; border-radius: 14px; background: #fff6e2;
+        box-shadow: 0 0 0 3px #8a6a3e, 0 6px 16px rgba(40, 28, 10, 0.3); opacity: 0; transform: translateY(-8px); pointer-events: none;
+        font: 700 12px/1.5 "PingFang TC", "Heiti TC", system-ui, sans-serif; color: #5a4024; transition: opacity 0.6s, transform 0.6s;
+      }
+      #routine.open { opacity: 1; transform: none; }
+      #routine .ribbon {
+        position: absolute; left: 50%; top: -12px; transform: translateX(-50%); padding: 2px 14px; border-radius: 10px; white-space: nowrap;
+        font-weight: 800; letter-spacing: 2px; color: #fff8e6; background: #d2643a; box-shadow: 0 0 0 2px #8a3a1e;
+      }
+      #routine ul { margin: 0; padding: 0; list-style: none; }
+      #routine li::before { content: "□ "; color: #b08a5a; }
+      #routine li.done { color: #a08868; text-decoration: line-through; }
+      #routine li.done::before { content: "☑ "; color: #6fae3e; }
       /* Story log: the robot's system lines in terminal green, memories in plain text, the letter on paper. */
       #story {
         position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -129,6 +178,17 @@
         padding: 18px 22px; border-radius: 6px; background: #f3ead2; color: #3a2a1c; transform: rotate(-0.6deg);
         font: 17px/1.9 "Kaiti TC", "BiauKai", "PingFang TC", serif; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
       }
+      /* At her door the scene stays in view; while the recording plays, only the recording. */
+      #story.soft { background: rgba(12, 14, 10, 0.6); }
+      #story.listening { background: rgba(12, 14, 10, 0.25); }
+      #story.listening .log, #story.listening .next { opacity: 0; }
+      #story .log, #story .next { transition: opacity 0.6s; }
+      #story .choices { display: flex; gap: 12px; }
+      #story .act {
+        padding: 8px 20px; border: 1px solid #9fe39a; border-radius: 6px; cursor: pointer; background: transparent;
+        font: 15px/1.6 ui-monospace, "SF Mono", Menlo, monospace; color: #9fe39a;
+      }
+      #story .act:hover { background: rgba(159, 227, 154, 0.15); }
       #story .next { margin-top: 18px; font: 13px system-ui, sans-serif; color: rgba(242, 237, 224, 0.6); animation: storyBlink 1.6s infinite; }
       @keyframes storyIn { from { opacity: 0; transform: translateY(6px); } }
       @keyframes storyBlink { 50% { opacity: 0.4; } }
@@ -141,6 +201,9 @@
         #hint { display: none; }
         #radar { top: auto; bottom: 76px; }
         #toast { top: auto; bottom: 122px; }
+        #syslog { top: 14px; }
+        #routine { top: auto; bottom: 122px; right: 16px; }
+        #echo { bottom: 128px; }
       }
       /* Sound mixer: a slider per channel, in the book's paper style, above the controls. */
       #mixer {
