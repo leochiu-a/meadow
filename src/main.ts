@@ -294,7 +294,7 @@ function step(dt: number) {
   notebook.setSignal(scavenge.signal)
   notebook.setObjective(goal?.label)
   world.update(t, dt, robot.position)
-  routine?.update(dt, { speed: robot.speed, rain: weather.rain, events: world.events })
+  routine?.update(dt, { rain: weather.rain, events: world.events })
   companion.update(t, dt, busy)
   wishes.update(dt, robot.position, robot.speed)
   if (world.landmarks.cottage && !busy && (musicBoxIn -= dt) <= 0) {

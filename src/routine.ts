@@ -4,7 +4,7 @@ import type { Robot } from './robot.ts'
 import type { Stray } from './strays.ts'
 import type { Landmarks, WorldEvent } from './world.ts'
 
-// DLV-06's day, from firmware thirty-one years old: a self-check, sun on its panel, greeting
+// DLV-06's day, from firmware thirty-one years old: a self-check, sun on its panel (any clear stretch counts, parked or rolling), greeting
 // customers, clearing its path, waiting at the crossing, its old patrol. Nothing is asked of
 // the player; a small list ticks off whatever happens, on patrol too. Once enough of the day
 // is done (or enough time has passed) it goes to load the next item, and the story begins.
@@ -39,7 +39,7 @@ export function createRoutine({ landmarks, animals = [], robot, onGreet, onDone 
 
   let active = false
   let elapsed = 0
-  let still = 0
+  let sunny = 0
   const done = new Set<Item>()
   const visited = new Set<number>()
   const wait = { greet: 0, crossing: 0 }
@@ -71,7 +71,7 @@ export function createRoutine({ landmarks, animals = [], robot, onGreet, onDone 
       setTimeout(() => complete('selfcheck', t.lines.selfcheck), 2500)
     },
     // events: this frame's world events (a flock taking off is one).
-    update(dt: number, { speed, rain, events = [] }: { speed: number; rain: number; events?: WorldEvent[] }) {
+    update(dt: number, { rain, events = [] }: { rain: number; events?: WorldEvent[] }) {
       const p = robot.position
       wait.greet -= dt
       wait.crossing -= dt
@@ -107,8 +107,8 @@ export function createRoutine({ landmarks, animals = [], robot, onGreet, onDone 
           say(t.nudges[next])
         }
       }
-      still = speed < 0.02 && rain < 0.05 ? still + dt : 0
-      if (still > 3) complete('sun', t.lines.sun)
+      if (rain < 0.05) sunny += dt
+      if (sunny > 8) complete('sun', t.lines.sun)
       const flock = events.find((e) => e.kind === 'flutter' && Math.hypot(e.x - p.x, e.z - p.z) < 8)
       if (flock) complete('pigeons', t.lines.pigeons(Math.floor(5 + Math.random() * 30)))
       if (rain > 0.3) complete('lens', t.lines.lens)

@@ -62,7 +62,7 @@ export default {
     items: { selfcheck: 'Morning self-check', sun: 'Solar charge', greet: 'Greet customers', pigeons: 'Clear delivery path', crossing: 'Obey traffic signals', lens: 'Clean lens', patrol: 'Patrol delivery route' },
     times: { selfcheck: '06:00', sun: '06:30', greet: '07:10', pigeons: '07:40', crossing: '08:20', lens: '09:00', patrol: '09:30' },
     nudges: {
-      sun: 'Battery 12% · find open ground and charge in the sun',
+      sun: 'Battery 12% · needs sunlight to charge',
       greet: 'Four-legged signal detected · move closer to greet',
       pigeons: 'Birds on the delivery path · clear them',
       crossing: 'Crossing outside Exit 6 · signal on standby',
