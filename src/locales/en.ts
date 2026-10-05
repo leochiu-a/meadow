@@ -4,7 +4,7 @@ export default {
   htmlLang: 'en',
   hint: 'Click to turn on sound · WASD / arrow keys to move · click the ground or map to go there · drag / Q E to turn · scroll to zoom · R rain · B log · M map · idle 4 s to auto-tour',
   settings: { title: 'Settings', language: 'Language', sound: 'Sound' },
-  mixer: { master: 'Master', music: 'Music', ambience: 'Ambience', weather: 'Weather', animals: 'Animals', robot: 'Robot', voice: 'Robot voice', echo: 'Story', ui: 'Interface', reset: 'Reset to default' },
+  mixer: { master: 'Master', music: 'Music', ambience: 'Ambience', weather: 'Weather', animals: 'Animals', robot: 'Robot', echo: 'Story', ui: 'Interface', reset: 'Reset to default' },
   goTo: (scene: string) => `Go to ${scene}`,
   credit: 'Map data',
   scenes: { meadow: 'the Meadow', ximending: 'Ruined Ximending' },
@@ -72,23 +72,23 @@ export default {
     lines: {
       boot: 'Today’s schedule: 7 items',
       selfcheck: ['Wheels OK · cargo box OK · speaker OK', 'Exterior: 38% moss cover'],
-      sun: ['Solar panel deployed…… battery 12% → 64%', { speak: 'Lovely weather today.' }],
-      greet: ['Customer detected (four-legged)', { speak: 'Hello! What would you like today?' }],
+      sun: ['Solar panel deployed…… battery 12% → 64%', 'Lovely weather today.'],
+      greet: ['Customer detected (four-legged)', 'Hello! What would you like today?'],
       cat: 'Customer satisfaction: cannot be assessed',
       pigeons: (n: number) => `Delivery path cleared (${n} birds)`,
-      crossing: ['Signal: no power · assuming green', { speak: 'Crossing.' }],
-      lens: ['Cleaning lens……', { speak: 'Thank you, rain.' }],
+      crossing: ['Signal: no power · assuming green', 'Crossing.'],
+      lens: ['Cleaning lens……', 'Thank you, rain.'],
       patrol: 'Patrol complete · shops on route: open 0 / closed 47',
     },
   },
 
   companion: {
     adopted: ['……', 'Customer has not left', 'Registered as regular: Customer No. 1'],
-    didYouHear: { speak: '…Did you hear that too?' },
-    remarks: [{ speak: 'Battery 64%. Lovely weather today.' }, { speak: 'Customer No. 1, please keep up.' }, { speak: 'Route ahead is clear. Let’s go.' }, 'Distance today: cannot be calculated (four-legged).'],
+    didYouHear: '…Did you hear that too?',
+    remarks: ['Battery 64%. Lovely weather today.', 'Customer No. 1, please keep up.', 'Route ahead is clear. Let’s go.', 'Distance today: cannot be calculated (four-legged).'],
   },
 
-  wishes: { delivered: { speak: 'Delivered.' } },
+  wishes: { delivered: 'Delivered.' },
 
   story: {
     next: 'Tap to continue ▸',
@@ -161,7 +161,7 @@ export default {
       { play: { label: 'Play audio file R11', id: 'R11', then: 'song' } },
       { sys: 'Posted: letter ×1' },
       { sys: 'Order status: delivered ✓', warn: true },
-      { sys: 'DLV-06: Thank you for your patience.', speak: 'Thank you for your patience.' },
+      { sys: 'DLV-06: Thank you for your patience.' },
       { sys: 'Clear audio buffer?' },
       { choice: { key: 'released', options: [{ label: 'Yes', value: true }, { label: 'No', value: false }] } },
     ],
@@ -171,7 +171,7 @@ export default {
       { sys: '  Recipient: A-Sheng' },
       { sys: '  Contents: 31 letters' },
       { sys: '  Destination: looking up……' },
-      { sys: 'DLV-06: Received.', speak: 'Received.' },
+      { sys: 'DLV-06: Received.' },
     ],
   },
 

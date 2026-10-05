@@ -18,7 +18,6 @@ import { createRoutine } from './routine.ts'
 import { createCompanion } from './companion.ts'
 import { createWishes } from './wishes.ts'
 import { createSettings, loadLevels } from './settings.ts'
-import { useAudio } from './voice.ts'
 import { loading, loaded, within } from './loading.ts'
 import { setLang, text } from './i18n.ts'
 import { hasSave, clearSave, lastScene, keepScene, reenter, reentered } from './save.ts'
@@ -184,7 +183,6 @@ const STORM_GREY = new THREE.Color('#8b9296')
 const minimap = world.minimap ? createMinimap(world.minimap, (x, z) => robot.goTo(new THREE.Vector3(x, 0, z))) : null
 
 // Browsers only allow audio after a user gesture, so the soundscape starts on first input.
-useAudio(audio)
 // Switching language reloads into the same place: back into play, or to the title menu.
 // Scenes built from map data credit it at the foot of the panel.
 const settings = createSettings(audio, levels, def.attribution, (code) => {

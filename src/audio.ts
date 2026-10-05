@@ -16,20 +16,17 @@ export type Ambience = 'meadow' | 'city'
 
 const PENTATONIC = [0, 2, 4, 7, 9]
 // The mixer's channels, each with its own volume (0–1) on top of the master.
-// 'voice' is the robot's speech (see voice.js): the browser speaks it, outside this graph.
-export const CHANNELS = ['music', 'ambience', 'weather', 'animals', 'robot', 'voice', 'echo', 'ui'] as const
+export const CHANNELS = ['music', 'ambience', 'weather', 'animals', 'robot', 'echo', 'ui'] as const
 export type Channel = (typeof CHANNELS)[number]
-// The channels mixed in this graph: the voice is spoken by the browser, outside it.
-type Bus = Exclude<Channel, 'voice'>
 type LevelName = Channel | 'master'
 // The default mix, balanced from measured levels: the music leads, wind and the robot's
 // motor (both constant) sit well under it, rain a little under, and the short sounds
 // (animal calls, the radar and the find chime) stay full so they cut through, as do the
 // recordings, which have the stage to themselves while they play.
-export const DEFAULT_LEVELS: Record<LevelName, number> = { master: 1, music: 1, ambience: 0.5, weather: 0.8, animals: 1, robot: 0.35, voice: 0.8, echo: 1, ui: 1 }
+export const DEFAULT_LEVELS: Record<LevelName, number> = { master: 1, music: 1, ambience: 0.5, weather: 0.8, animals: 1, robot: 0.35, echo: 1, ui: 1 }
 // While a recording or the song plays, the world around it drops to this much.
-const DUCK: Partial<Record<Bus, number>> = { music: 0.15, ambience: 0.25, weather: 0.35, animals: 0.3, robot: 0.6 }
-const DUCKED = Object.keys(DUCK) as Bus[]
+const DUCK: Partial<Record<Channel, number>> = { music: 0.15, ambience: 0.25, weather: 0.35, animals: 0.3, robot: 0.6 }
+const DUCKED = Object.keys(DUCK) as Channel[]
 const midiToHz = (m: number) => 440 * 2 ** ((m - 69) / 12)
 const rand = (a: number, b: number) => a + Math.random() * (b - a)
 
@@ -73,7 +70,7 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
   // Volume per channel plus 'master'; the user's mixer settings, applied once audio exists.
   const level = { ...DEFAULT_LEVELS, ...levels }
   // Each channel: dry goes straight out, wet also feeds the room reverb.
-  let bus!: Record<Bus, { dry: GainNode; wet: GainNode }>
+  let bus!: Record<Channel, { dry: GainNode; wet: GainNode }>
   const timers = { bird: 2, creak: 6, rattle: 14, crow: 9 }
   const animalTimers = new Map<PointXZ, number>()
 
@@ -82,12 +79,12 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
   let ducked = false
 
   const masterTarget = () => (enabled ? 0.9 * level.master : 0)
-  const busTarget = (name: Bus) => level[name] * (ducked ? (DUCK[name] ?? 1) : 1)
+  const busTarget = (name: Channel) => level[name] * (ducked ? (DUCK[name] ?? 1) : 1)
   function setLevel(name: LevelName, value: number, ramp = 0.05) {
     level[name] = value
     if (!ctx) return
     if (name === 'master') master.gain.setTargetAtTime(started ? masterTarget() : 0, ctx.currentTime, ramp)
-    else if (name !== 'voice') for (const node of Object.values(bus[name])) node.gain.setTargetAtTime(busTarget(name), ctx.currentTime, ramp)
+    else for (const node of Object.values(bus[name])) node.gain.setTargetAtTime(busTarget(name), ctx.currentTime, ramp)
   }
   function duck(seconds: number) {
     duckUntil = Math.max(duckUntil, ctx.currentTime + seconds)
@@ -115,7 +112,7 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
   }
 
   // Distant sounds are quieter; the world plays in mono, so nothing in it sits left or right.
-  function spatial(x: number, z: number, listener: PointXZ, channel: Bus) {
+  function spatial(x: number, z: number, listener: PointXZ, channel: Channel) {
     const d = Math.hypot(x - listener.x, z - listener.z)
     const g = ctx.createGain()
     g.gain.value = 1 / (1 + d * d * 0.012)
@@ -147,7 +144,7 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
     const click = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.03), ctx.sampleRate)
     const tick = click.getChannelData(0)
     for (let i = 0; i < tick.length; i++) tick[i] = (Math.random() * 2 - 1) * (1 - i / tick.length) ** 2
-    const channel = (c: Bus) => {
+    const channel = (c: Channel) => {
       const dry = ctx.createGain()
       const wet = ctx.createGain()
       // The story channel skips the fold-down: recordings keep their stereo.
@@ -598,10 +595,6 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
       return started && enabled
     },
 
-    // How loud the robot's voice should be, 0 while sound is off.
-    get voiceVolume() {
-      return started && enabled ? level.master * level.voice : 0
-    },
     // Mixer volume (0–1) for 'master' or one of CHANNELS.
     setLevel,
     start() {

@@ -4,7 +4,7 @@ const zh = {
   htmlLang: 'zh-Hant',
   hint: '點一下開啟聲音・WASD / 方向鍵移動・點地面或地圖前往・拖曳 / Q E 轉視角・滾輪縮放・R 下雨・B 紀錄・M 開關地圖・閒置 4 秒自動巡遊',
   settings: { title: '設定', language: '語言', sound: '聲音' },
-  mixer: { master: '總音量', music: '音樂', ambience: '環境', weather: '天氣', animals: '動物', robot: '機器人', voice: '機器人語音', echo: '故事', ui: '提示音', reset: '恢復預設' },
+  mixer: { master: '總音量', music: '音樂', ambience: '環境', weather: '天氣', animals: '動物', robot: '機器人', echo: '故事', ui: '提示音', reset: '恢復預設' },
   goTo: (scene: string) => `前往${scene}`,
   credit: '地圖資料',
   scenes: { meadow: '草原', ximending: '廢土西門町' },
@@ -72,23 +72,23 @@ const zh = {
     lines: {
       boot: '今日排程：7 項',
       selfcheck: ['輪組 OK・貨箱 OK・喇叭 OK', '外觀：苔蘚覆蓋 38%'],
-      sun: ['太陽能板展開……電量 12% → 64%', { speak: '今天天氣很好。' }],
-      greet: ['偵測到顧客（四足）', { speak: '您好！今天想吃點什麼？' }],
+      sun: ['太陽能板展開……電量 12% → 64%', '今天天氣很好。'],
+      greet: ['偵測到顧客（四足）', '您好！今天想吃點什麼？'],
       cat: '顧客滿意度：無法評估',
       pigeons: (n: number) => `配送路徑已淨空（${n} 隻）`,
-      crossing: ['號誌：無訊號・推定為綠燈', { speak: '通過。' }],
-      lens: ['鏡頭清潔中……', { speak: '謝謝雨。' }],
+      crossing: ['號誌：無訊號・推定為綠燈', '通過。'],
+      lens: ['鏡頭清潔中……', '謝謝雨。'],
       patrol: '巡邏完成・沿途店家：營業中 0／歇業 47',
     },
   },
 
   companion: {
     adopted: ['……', '顧客未離開', '登錄為常客：一號顧客'],
-    didYouHear: { speak: '……你也聽到了嗎？' },
-    remarks: [{ speak: '電量 64%。今天天氣很好。' }, { speak: '一號顧客，請跟緊。' }, { speak: '前方路線暢通。我們走。' }, '今日里程：無法計算（四足）。'],
+    didYouHear: '……你也聽到了嗎？',
+    remarks: ['電量 64%。今天天氣很好。', '一號顧客，請跟緊。', '前方路線暢通。我們走。', '今日里程：無法計算（四足）。'],
   },
 
-  wishes: { delivered: { speak: '已送達。' } },
+  wishes: { delivered: '已送達。' },
 
   story: {
     next: '點一下繼續 ▸',
@@ -161,7 +161,7 @@ const zh = {
       { play: { label: '播放音訊檔 R11', id: 'R11', then: 'song' } },
       { sys: '投遞：信件 ×1' },
       { sys: '訂單狀態：已送達 ✓', warn: true },
-      { sys: 'DLV-06：感謝您的耐心等候。', speak: '感謝您的耐心等候。' },
+      { sys: 'DLV-06：感謝您的耐心等候。' },
       { sys: '清除音訊緩衝區？' },
       { choice: { key: 'released', options: [{ label: '是', value: true }, { label: '否', value: false }] } },
     ],
@@ -171,7 +171,7 @@ const zh = {
       { sys: '  收件人：阿聲' },
       { sys: '  內容：信件 31 封' },
       { sys: '  目的地：查詢中……' },
-      { sys: 'DLV-06：收到。', speak: '收到。' },
+      { sys: 'DLV-06：收到。' },
     ],
   } satisfies StoryScripts,
 

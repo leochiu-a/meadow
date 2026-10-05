@@ -8,17 +8,16 @@
 //     her the recording she never heard, posts the letter, and may let the recordings go.
 //     With her letters to A-Sheng in hand, it takes a new order.
 // Lines play in a log over the scene: click, Space or Enter for the next line, Esc to skip
-// to the end. Some steps wait on a button instead; the robot says the ones with `speak`. Progress lives in this browser.
+// to the end. Some steps wait on a button instead. Progress lives in this browser.
 
 import { text } from './i18n.ts'
-import { speak } from './voice.ts'
 import type { EchoId } from './echoes.ts'
 import type { Landmarks, SceneName } from './world.ts'
 
-// One step of a script: a system line (said aloud with `speak`), a plain line, the letter,
+// One step of a script: a system line, a plain line, the letter,
 // a recording played on a button, or a choice that is kept.
 export type StoryStep =
-  | { sys: string; warn?: boolean; speak?: string }
+  | { sys: string; warn?: boolean }
   | { line: string }
   | { letter: string }
   | { play: { label: string; id: EchoId; then?: 'song' } }
@@ -137,7 +136,6 @@ export function createStory(sceneName: SceneName, landmarks: Landmarks = {}, hoo
     } else if ('sys' in s) {
       el.className = `sys${s.warn ? ' warn' : ''}`
       el.textContent = `> ${s.sys}`
-      if (s.speak) speak(s.speak)
     } else {
       el.className = 'line'
       el.textContent = s.line
