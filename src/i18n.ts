@@ -1,6 +1,5 @@
 import zh, { type Locale } from './locales/zh.ts'
 import en from './locales/en.ts'
-import { reenter } from './save.ts'
 
 // Every word the player reads, in Chinese or English: the choice saved in this browser, else
 // the browser's own language. Changing it reloads the page, like switching scenes.
@@ -32,6 +31,5 @@ export function setLang(next: Lang) {
   } catch {
     // Storage blocked: nowhere to keep the choice, so the browser's language stays.
   }
-  reenter()
   location.reload()
 }

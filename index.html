@@ -16,10 +16,10 @@
       }
       #hint.dim { opacity: 0.55; }
       #hint:empty { display: none; }
-      /* Bottom-right controls: language, scene and sound. */
+      /* Bottom-right controls: the way to the other scene, and settings. */
       #controls { position: fixed; right: 16px; bottom: 16px; display: flex; gap: 12px; }
       #controls svg { width: 20px; height: 20px; }
-      #scene, #lang {
+      #scene {
         height: 44px; padding: 0 16px;
         font: 14px system-ui, sans-serif; border: 0; border-radius: 22px; cursor: pointer;
         background: rgba(30, 40, 20, 0.45); color: #fff; backdrop-filter: blur(4px);
@@ -205,29 +205,56 @@
         #routine { top: auto; bottom: 122px; right: 16px; }
         #echo { bottom: 128px; }
       }
-      /* Sound mixer: a slider per channel, in the book's paper style, above the controls. */
-      #mixer {
-        position: fixed; right: 16px; bottom: 76px; width: min(300px, calc(100vw - 32px)); box-sizing: border-box;
+      /* Settings: language, sound and the mixer, in the book's paper style, above the controls. */
+      #settings {
+        position: fixed; right: 16px; bottom: 76px; z-index: 16; width: min(300px, calc(100vw - 32px)); box-sizing: border-box;
         padding: 26px 16px 12px; border-radius: 16px; background: #fff6e2;
         box-shadow: 0 0 0 3px #8a6a3e, 0 8px 22px rgba(40, 28, 10, 0.35);
         font: 700 13px "PingFang TC", "Heiti TC", system-ui, sans-serif; color: #5a4024;
         opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity 0.2s, transform 0.2s;
       }
-      #mixer.open { opacity: 1; transform: none; pointer-events: auto; }
-      #mixer .ribbon {
+      #settings.open { opacity: 1; transform: none; pointer-events: auto; }
+      /* Opened from the title menu: centred over it. */
+      body.titled #settings { right: auto; bottom: auto; left: 50%; top: 50%; translate: -50% -50%; }
+      /* …in place of the menu: its buttons step aside while the panel is open. */
+      #menu .box { transition: opacity 0.2s; }
+      body:has(#settings.open) #menu .box { opacity: 0; pointer-events: none; }
+      #settings .ribbon {
         position: absolute; left: 50%; top: -14px; transform: translateX(-50%); padding: 3px 18px; border-radius: 12px;
         font-weight: 800; letter-spacing: 2px; color: #fff8e6; background: #d2643a; white-space: nowrap;
         box-shadow: 0 0 0 2px #8a3a1e, 0 2px 0 2px rgba(80, 30, 10, 0.4);
       }
-      #mixer label { display: grid; grid-template-columns: 76px 1fr 40px; align-items: center; gap: 10px; padding: 5px 0; }
-      #mixer label:first-of-type { padding-bottom: 10px; margin-bottom: 4px; border-bottom: 2px dashed #e2d4b4; }
-      #mixer input { width: 100%; accent-color: #d2643a; }
-      #mixer output { text-align: right; font-variant-numeric: tabular-nums; color: #a08868; }
-      #mixer .reset {
+      #settings .close {
+        position: absolute; right: 8px; top: 6px; width: 28px; height: 28px; border: 0; border-radius: 50%;
+        font-size: 20px; line-height: 28px; cursor: pointer; background: transparent; color: #8a6a3e;
+      }
+      #settings .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 0; }
+      #settings .choice { display: flex; padding: 3px; border-radius: 14px; background: #f1e4c4; }
+      #settings .choice button {
+        padding: 4px 12px; border: 0; border-radius: 11px; cursor: pointer; font: inherit; color: #8a6a3e; background: transparent;
+      }
+      #settings .choice button[aria-pressed="true"] { cursor: default; color: #fff8e6; background: #d2643a; }
+      /* Sound switch: a pill with a sliding knob. */
+      #settings input[role="switch"] {
+        appearance: none; position: relative; width: 42px; height: 24px; margin: 0; border-radius: 12px; cursor: pointer;
+        background: #e2d4b4; transition: background 0.2s;
+      }
+      #settings input[role="switch"]::after {
+        content: ""; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%;
+        background: #fff; box-shadow: 0 1px 2px rgba(40, 28, 10, 0.3); transition: transform 0.2s;
+      }
+      #settings input[role="switch"]:checked { background: #6fae3e; }
+      #settings input[role="switch"]:checked::after { transform: translateX(18px); }
+      #settings .level { display: grid; grid-template-columns: 76px 1fr 40px; align-items: center; gap: 10px; padding: 5px 0; }
+      /* The master volume, set apart from the language and sound above and the channels below. */
+      #settings .row + .level { margin: 6px 0 4px; padding: 12px 0 10px; border-block: 2px dashed #e2d4b4; }
+      #settings input[type="range"] { width: 100%; accent-color: #d2643a; }
+      #settings output { text-align: right; font-variant-numeric: tabular-nums; color: #a08868; }
+      #settings .reset {
         display: block; margin: 8px auto 0; padding: 5px 14px; border: 0; border-radius: 12px; cursor: pointer;
         font: inherit; color: #8a6a3e; background: #f1e4c4;
       }
-      #mixer .reset:hover { background: #ead7ac; }
+      #settings .reset:hover { background: #ead7ac; }
       /* Loading screen: shown from the first paint, filled by src/loading.js as the scene builds. */
       #loading {
         position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
@@ -276,8 +303,7 @@
       #menu button:disabled { cursor: default; opacity: 0.5; }
       body.titled #hint, body.titled #minimap, body.titled #radar, body.titled #controls,
       body.titled #syslog, body.titled #routine { opacity: 0 !important; pointer-events: none !important; }
-      #lang { min-width: 44px; padding: 0 12px; font-weight: 700; }
-      #sound, #mixer-button {
+      #settings-button {
         display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
         border: 0; border-radius: 50%; cursor: pointer;
         background: rgba(30, 40, 20, 0.45); color: #fff; backdrop-filter: blur(4px);
@@ -288,9 +314,7 @@
     <div id="hint"></div>
     <div id="credit"></div>
     <div id="controls">
-      <button id="lang"></button>
       <button id="scene"></button>
-      <button id="sound"></button>
     </div>
     <div id="loading" role="progressbar">
       <div class="box">

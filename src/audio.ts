@@ -593,6 +593,11 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
     get enabled() {
       return enabled
     },
+    // Whether anything can be heard: started by a gesture, and not muted.
+    get on() {
+      return started && enabled
+    },
+
     // How loud the robot's voice should be, 0 while sound is off.
     get voiceVolume() {
       return started && enabled ? level.master * level.voice : 0

@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { createElement, Volume, Volume2, VolumeX, type IconNode } from 'lucide'
 import meadow from './meadow.ts'
 import ximending from './ximending.ts'
 import { createRobot } from './robot.ts'
@@ -18,10 +17,10 @@ import { ECHOES, createEchoes } from './echoes.ts'
 import { createRoutine } from './routine.ts'
 import { createCompanion } from './companion.ts'
 import { createWishes } from './wishes.ts'
-import { createMixer, loadLevels } from './mixer.ts'
+import { createSettings, loadLevels } from './settings.ts'
 import { useAudio } from './voice.ts'
 import { loading, loaded, within } from './loading.ts'
-import { lang, text, setLang } from './i18n.ts'
+import { setLang, text } from './i18n.ts'
 import { hasSave, clearSave, lastScene, keepScene, reenter, reentered } from './save.ts'
 import { showMenu } from './menu.ts'
 import type { SceneDef, SceneName, WorldEvent } from './world.ts'
@@ -34,9 +33,6 @@ function byId(id: string) {
   return el
 }
 byId('hint').textContent = text.hint
-byId('sound').setAttribute('aria-label', text.sound)
-const soundIcon = (icon: IconNode) => byId('sound').replaceChildren(createElement(icon))
-soundIcon(Volume)
 byId('loading').setAttribute('aria-label', text.loading.aria)
 
 const renderer = new THREE.WebGLRenderer({ powerPreference: 'high-performance', antialias: false, stencil: false })
@@ -173,12 +169,14 @@ const minimap = world.minimap ? createMinimap(world.minimap, (x, z) => robot.goT
 
 // Browsers only allow audio after a user gesture, so the soundscape starts on first input.
 useAudio(audio)
-createMixer(audio, levels)
+// Switching language reloads into the same place: back into play, or to the title menu.
+const settings = createSettings(audio, levels, (code) => {
+  if (!titled) reenter()
+  setLang(code)
+})
 const weather = createWeather((delay) => audio.thunder(delay))
-const soundButton = byId('sound')
 const startAudio = () => {
   audio.start()
-  soundIcon(audio.enabled ? Volume2 : VolumeX)
   byId('hint').classList.add('dim')
 }
 addEventListener('pointerdown', startAudio, { once: true })
@@ -193,18 +191,6 @@ sceneButton.textContent = text.goTo(text.scenes[other])
 sceneButton.addEventListener('pointerdown', (e) => {
   e.stopPropagation()
   travel(other)
-})
-soundButton.addEventListener('pointerdown', (e) => {
-  e.stopPropagation()
-  soundIcon(audio.toggle() ? Volume2 : VolumeX)
-})
-// Switching language reloads too, back into the same scene.
-const langButton = byId('lang')
-langButton.textContent = text.langButton
-langButton.setAttribute('aria-label', text.langLabel)
-langButton.addEventListener('pointerdown', (e) => {
-  e.stopPropagation()
-  setLang(lang === 'zh' ? 'en' : 'zh')
 })
 
 // Drag to orbit the camera; a plain click on the ground sends the robot there.
@@ -266,7 +252,7 @@ run()
 // module above has already read its progress; with nothing saved there is nothing to erase.
 let titled = entering
 if (entering) {
-  const choice = await showMenu(saved)
+  const choice = await showMenu(saved, settings.open)
   if (choice === 'new' && saved) {
     clearSave()
     travel('ximending')

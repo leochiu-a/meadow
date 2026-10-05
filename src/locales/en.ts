@@ -2,11 +2,9 @@ import type { Locale } from './zh.ts'
 
 export default {
   htmlLang: 'en',
-  langButton: '中',
-  langLabel: '切換為中文',
   hint: 'Click to turn on sound · WASD / arrow keys to move · click the ground or map to go there · drag / Q E to turn · scroll to zoom · R rain · B log · M map · idle 4 s to auto-tour',
-  sound: 'Toggle sound',
-  mixer: { title: 'Sound', master: 'Master', music: 'Music', ambience: 'Ambience', weather: 'Weather', animals: 'Animals', robot: 'Robot', voice: 'Robot voice', echo: 'Story', ui: 'Interface', reset: 'Reset to default' },
+  settings: { title: 'Settings', language: 'Language', sound: 'Sound' },
+  mixer: { master: 'Master', music: 'Music', ambience: 'Ambience', weather: 'Weather', animals: 'Animals', robot: 'Robot', voice: 'Robot voice', echo: 'Story', ui: 'Interface', reset: 'Reset to default' },
   goTo: (scene: string) => `Go to ${scene}`,
   credit: 'Map data',
   scenes: { meadow: 'the Meadow', ximending: 'Ruined Ximending' },

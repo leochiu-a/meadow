@@ -5,8 +5,11 @@ import { text } from './i18n.ts'
 
 export type MenuChoice = 'continue' | 'new'
 
-/** saved: whether there is progress to continue. Resolves 'continue' or 'new'. */
-export function showMenu(saved: boolean): Promise<MenuChoice> {
+/**
+ * saved: whether there is progress to continue; openSettings() shows the settings panel.
+ * Resolves 'continue' or 'new'.
+ */
+export function showMenu(saved: boolean, openSettings: () => void): Promise<MenuChoice> {
   const overlay = document.createElement('div')
   overlay.id = 'menu'
   overlay.innerHTML = '<div class="box"><div class="title">MEADOW BOT</div><div class="choices"></div></div>'
@@ -32,7 +35,7 @@ export function showMenu(saved: boolean): Promise<MenuChoice> {
     const main = () => {
       const cont = button(text.menu.continue, () => choose('continue'), saved)
       cont.disabled = !saved
-      choices.replaceChildren(cont, button(text.menu.newGame, () => (saved ? confirm() : choose('new')), !saved))
+      choices.replaceChildren(cont, button(text.menu.newGame, () => (saved ? confirm() : choose('new')), !saved), button(text.settings.title, openSettings))
       choices.querySelector<HTMLElement>('.primary')?.focus()
     }
     const confirm = () => {

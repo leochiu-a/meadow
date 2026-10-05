@@ -2,11 +2,9 @@ import type { StoryScripts } from '../story.ts'
 import type { EchoTexts } from '../echoes.ts'
 const zh = {
   htmlLang: 'zh-Hant',
-  langButton: 'EN',
-  langLabel: 'Switch to English',
   hint: '點一下開啟聲音・WASD / 方向鍵移動・點地面或地圖前往・拖曳 / Q E 轉視角・滾輪縮放・R 下雨・B 紀錄・M 開關地圖・閒置 4 秒自動巡遊',
-  sound: '切換聲音',
-  mixer: { title: '音量', master: '總音量', music: '音樂', ambience: '環境', weather: '天氣', animals: '動物', robot: '機器人', voice: '機器人語音', echo: '故事', ui: '提示音', reset: '恢復預設' },
+  settings: { title: '設定', language: '語言', sound: '聲音' },
+  mixer: { master: '總音量', music: '音樂', ambience: '環境', weather: '天氣', animals: '動物', robot: '機器人', voice: '機器人語音', echo: '故事', ui: '提示音', reset: '恢復預設' },
   goTo: (scene: string) => `前往${scene}`,
   credit: '地圖資料',
   scenes: { meadow: '草原', ximending: '廢土西門町' },
