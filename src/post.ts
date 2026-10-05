@@ -27,7 +27,9 @@ export function createComposer(renderer: THREE.WebGLRenderer, scene: THREE.Scene
     intensity: 2.6,
     color: new THREE.Color('#2a1a10'),
     gammaCorrection: false,
-    halfRes: true,
+    // Full resolution: at half, the occlusion of the dense grass upsamples into dark blade-
+    // shaped smudges that crawl over the lawn whenever the camera moves.
+    halfRes: false,
   })
   ao.setQualityMode('Performance')
   composer.addPass(ao)
