@@ -95,17 +95,23 @@ export function weathered<M extends MeshStandardMaterial>(material: M, { kind = 
             float vert = 1.0 - abs(vWNrm.y);
             float wobble = (wNoise(vec3(vWPos.x * 0.6, 0.0, vWPos.z * 0.6)) - 0.5) * 0.14;
             float top = ${flood.toFixed(2)} + wobble;
-            float below = 1.0 - smoothstep(top - 0.04, top + 0.01, vWPos.y);
-            // Dried silt films everything below, pale on dark walls and dull on light ones.
-            c = mix(c, vec3(0.55, 0.5, 0.4) * (0.8 + 0.35 * fine), below * 0.42 * vert);
-            float tide = smoothstep(top - 0.07, top - 0.01, vWPos.y) - smoothstep(top - 0.01, top + 0.02, vWPos.y);
-            c = mix(c, vec3(0.2, 0.15, 0.1), tide * 0.85 * vert);
+            float below = 1.0 - smoothstep(top - 0.03, top + 0.005, vWPos.y);
+            // Dried silt films everything below in muddy brown, heavier toward the ground where
+            // the water stood longest.
+            float depth = clamp((top - vWPos.y) / top, 0.0, 1.0);
+            c = mix(c, vec3(0.47, 0.4, 0.3) * (0.8 + 0.35 * fine), below * (0.38 + 0.22 * depth) * vert);
+            // Scum collected just under the surface: a darker band fading down from the line.
+            float scum = below * (1.0 - smoothstep(0.0, 0.28, top - vWPos.y));
+            c = mix(c, vec3(0.28, 0.22, 0.15), scum * 0.45 * vert);
+            // The tide line itself: sharp on top, where the water's edge dried.
+            float tide = smoothstep(top - 0.1, top - 0.02, vWPos.y) - smoothstep(top - 0.005, top + 0.01, vWPos.y);
+            c = mix(c, vec3(0.16, 0.12, 0.08), tide * 0.9 * vert);
             float low = ${(flood * 0.55).toFixed(2)} + wobble * 0.7;
-            float tide2 = smoothstep(low - 0.05, low - 0.01, vWPos.y) - smoothstep(low - 0.01, low + 0.015, vWPos.y);
-            c = mix(c, vec3(0.3, 0.25, 0.18), tide2 * 0.4 * vert);
+            float tide2 = smoothstep(low - 0.06, low - 0.01, vWPos.y) - smoothstep(low - 0.01, low + 0.012, vWPos.y);
+            c = mix(c, vec3(0.28, 0.22, 0.15), tide2 * 0.55 * vert);
             // Silt dried in streaks that ran down from the tide line.
             float drip = wNoise(vec3((vWPos.x + vWPos.z) * 7.0, vWPos.y * 0.5, 0.0));
-            c *= 1.0 - smoothstep(0.7, 0.9, drip) * below * 0.18 * vert;
+            c *= 1.0 - smoothstep(0.62, 0.88, drip) * below * 0.3 * vert;
           }`
               : ''
           }

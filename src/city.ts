@@ -292,6 +292,7 @@ const restingY = (w: number, h: number, d: number, rx: number, rz: number) => (M
  * Wall slab w wide whose top edge has broken away: about `broken` (0..1) of its height `h`
  * gone, the break stepped along floor lines with a ragged profile. Rectangular `holes` that still
  * sit below the break become empty window openings. Faces +z, base at y = 0, 0.3 thick.
+ * Returns the geometry and below(x): how high the wall still stands at local x.
  */
 function jaggedWall(w: number, h: number, broken: number, holes: Hole[] = []) {
   const steps = Math.max(4, Math.round(w / 0.45))
@@ -332,7 +333,7 @@ function jaggedWall(w: number, h: number, broken: number, holes: Hole[] = []) {
     path.closePath()
     shape.holes.push(path)
   }
-  return new THREE.ExtrudeGeometry(shape, { depth: 0.3, bevelEnabled: false }).translate(0, 0, -0.3)
+  return { geometry: new THREE.ExtrudeGeometry(shape, { depth: 0.3, bevelEnabled: false }).translate(0, 0, -0.3), below }
 }
 
 // ---------------------------------------------------------------- buildings
@@ -342,6 +343,24 @@ const CLADDING = ['#d6cdbd', '#c9bba6', '#bfb7ad', '#cdb7a4', '#a9aaa4', '#d8d2c
 const box = (w: number, h: number, d: number, mat: THREE.Material) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat)
 
 const windowBays = (w: number) => Math.max(1, Math.floor(w / 2.3))
+
+// The door beside a shop to the stairs up to the homes above: a painted steel door in a dark
+// frame, with its handle and a letter slot. Built facing +z, base at y = 0, centred on x;
+// STAIR_DOOR is the width it takes from the shopfront.
+const STAIR_DOOR = 1.3
+function stairDoor() {
+  const g = new THREE.Group()
+  const frame = box(1.2, 2.5, 0.1, cityMat('#2a2b2d', { kind: 'metal' }))
+  frame.position.set(0, 1.25, 0.05)
+  const panel = box(0.96, 2.3, 0.06, cityMat(pick(['#5d6b67', '#7a3e33', '#b9b3a4', '#4a5866', '#8c7a52']), { kind: 'metal' }))
+  panel.position.set(0, 1.17, 0.1)
+  const handle = box(0.04, 0.16, 0.05, cityMat('#c9c2ae', { kind: 'metal' }))
+  handle.position.set(0.36, 1.05, 0.15)
+  const slot = box(0.3, 0.05, 0.04, cityMat('#1c1c1c', { kind: 'metal' }))
+  slot.position.set(0, 1.45, 0.14)
+  g.add(frame, panel, handle, slot)
+  return g
+}
 
 // Ground floor: recessed shopfront with a shutter, the fascia sign, and the arcade columns
 // along the street edge (some snapped off in a ruin). Returns column x positions kept.
@@ -369,12 +388,20 @@ function arcade(g: THREE.Object3D, local: LocalPart[], { w, d, clad, plain, ruin
     kept.push(cx)
   }
   const darkShop = cityMat('#141210', { kind: 'paint', grime: 0.2 })
-  const opening = box(w - 1.2, GROUND_FLOOR - 0.9, 0.05, darkShop)
-  opening.position.set(0, (GROUND_FLOOR - 0.9) / 2, -ARCADE + 0.03)
+  // The front splits into the shop and, at one end, the door to the stairs up to the homes.
+  const front = w - 1.2
+  const side = rand() < 0.5 ? -1 : 1
+  const shopW = front - STAIR_DOOR
+  const shopX = -side * (STAIR_DOOR / 2)
+  const opening = box(shopW, GROUND_FLOOR - 0.9, 0.05, darkShop)
+  opening.position.set(shopX, (GROUND_FLOOR - 0.9) / 2, -ARCADE + 0.03)
   g.add(opening)
+  const door = stairDoor()
+  door.position.set(side * (front / 2 - STAIR_DOOR / 2), 0, -ARCADE)
+  g.add(door)
   // Shutters, some rolled part way up over the black interior.
   const shutterH = (GROUND_FLOOR - 0.9) * pick([1, 1, 0.75, 0.45, 0.2])
-  local.push(['shutter', new THREE.Matrix4().compose(new THREE.Vector3(0, GROUND_FLOOR - 0.9 - shutterH / 2, -ARCADE + 0.08), new THREE.Quaternion(), new THREE.Vector3(w - 1.2, shutterH, 1)), pick(['#8f8a80', '#7d8288', '#a39d90', '#6e6a62'])])
+  local.push(['shutter', new THREE.Matrix4().compose(new THREE.Vector3(shopX, GROUND_FLOOR - 0.9 - shutterH / 2, -ARCADE + 0.08), new THREE.Quaternion(), new THREE.Vector3(shopW, shutterH, 1)), pick(['#8f8a80', '#7d8288', '#a39d90', '#6e6a62'])])
   const fascia = new THREE.Mesh(new THREE.BoxGeometry(w - 0.4, 0.9, 0.12), [plain, plain, plain, plain, signMaterial(), plain])
   fascia.position.set(0, GROUND_FLOOR - 0.55, 0.08)
   if (ruined && rand() < 0.5) {
@@ -446,11 +473,11 @@ function facadeHoles(w: number, floors: number, base: number) {
 // interior floors gone or hanging off their last supports, rubble heaped inside.
 function shell(g: THREE.Object3D, local: LocalPart[], { w, d, floors, clad }: Omit<Block, 'plain'>) {
   const h = floors * FLOOR + 0.9
-  const front = new THREE.Mesh(jaggedWall(w, h, range(0.3, 0.7), facadeHoles(w, floors, 0)), clad)
+  const front = new THREE.Mesh(jaggedWall(w, h, range(0.3, 0.7), facadeHoles(w, floors, 0)).geometry, clad)
   front.position.y = GROUND_FLOOR
   g.add(front)
   for (const side of [-1, 1]) {
-    const wall = new THREE.Mesh(jaggedWall(d, h * range(0.6, 1), range(0.4, 0.9)), clad)
+    const wall = new THREE.Mesh(jaggedWall(d, h * range(0.6, 1), range(0.4, 0.9)).geometry, clad)
     wall.position.set(side * (w / 2 - 0.15), GROUND_FLOOR, -d / 2)
     wall.rotation.y = side * Math.PI / 2
     g.add(wall)
@@ -473,7 +500,7 @@ function shell(g: THREE.Object3D, local: LocalPart[], { w, d, floors, clad }: Om
 // tilted stack, and a heap of debris spilling forward into the street.
 function collapsed(g: THREE.Object3D, local: LocalPart[], { w, d, clad }: Pick<Block, 'w' | 'd' | 'clad'>) {
   const stubH = FLOOR * range(0.4, 1.3)
-  const front = new THREE.Mesh(jaggedWall(w, stubH, range(0.2, 0.8), facadeHoles(w, 1, 0)), clad)
+  const front = new THREE.Mesh(jaggedWall(w, stubH, range(0.2, 0.8), facadeHoles(w, 1, 0)).geometry, clad)
   front.position.y = GROUND_FLOOR
   g.add(front)
   const slabMat = cityMat(pick(CONCRETE))
@@ -630,6 +657,73 @@ function extrudeFootprint(pts: readonly XZ[], h: number, mat: THREE.Material, y0
   return new THREE.Mesh(geo, mat)
 }
 
+// What says "this was a ground floor" in a ruin seen at eye level: on the street side a wide
+// shop opening, elsewhere a door and a window, all in the wall's own coordinates.
+function groundFloorHoles(len: number, street: boolean): Hole[] {
+  if (len < 3) return []
+  if (street) {
+    const w = Math.min(len - 1.2, 4.5)
+    return [{ x: range(-0.3, 0.3) * (len - w), y: 0.15, w, h: GROUND_FLOOR - 1.1 }]
+  }
+  const door = { x: range(-0.3, 0.3) * len, y: 0.15, w: 1.1, h: 2.2 }
+  if (len < 5) return [door]
+  // The window on the wider side of the door.
+  const side = door.x < 0 ? 1 : -1
+  return [door, { x: door.x + side * Math.min(len / 2 - 1, 2.4), y: 1, w: 1.4, h: 1.1 }]
+}
+
+// The edge of the first-floor slab along a ruined wall, wherever the wall still stands above it.
+function floorLedge(g: THREE.Object3D, e: Edge, below: (x: number) => number, mat: THREE.Material) {
+  const step = 0.5
+  // The wall's own +x, which below() is measured along.
+  const ax = Math.cos(e.yaw)
+  const az = -Math.sin(e.yaw)
+  let from: number | null = null
+  const flush = (to: number) => {
+    if (from === null || to - from < 0.8) return
+    const ledge = box(to - from, 0.24, 0.42, mat)
+    const mid = (from + to) / 2
+    ledge.position.set(e.mx + ax * mid + e.nx * 0.06, GROUND_FLOOR + 0.12, e.mz + az * mid + e.nz * 0.06)
+    ledge.rotation.y = e.yaw
+    g.add(ledge)
+  }
+  for (let x = -e.len / 2; x <= e.len / 2; x += step) {
+    const standing = below(Math.min(e.len / 2, x + step / 2)) > GROUND_FLOOR + 0.4
+    if (standing && from === null) from = x
+    if (!standing && from !== null) {
+      flush(x)
+      from = null
+    }
+  }
+  flush(e.len / 2)
+}
+
+// Old Taipei ground floors: small square mosaic tiles in muted colours, laid in metres.
+let tileMaterial: CityMaterial | null = null
+function floorTiles() {
+  if (tileMaterial) return tileMaterial
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = 256
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#8e877a'
+  ctx.fillRect(0, 0, 256, 256)
+  const tones = ['#b9b2a2', '#a9a291', '#c4bdac', '#9d9686', '#b0a08a']
+  for (let i = 0; i < 16; i++) {
+    for (let j = 0; j < 16; j++) {
+      ctx.fillStyle = pick(tones)
+      ctx.fillRect(i * 16 + 1, j * 16 + 1, 14, 14)
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  // 256 px over two metres: tiles about 12 cm across.
+  tex.repeat.set(0.5, 0.5)
+  tex.anisotropy = 4
+  tileMaterial = withCutaway(weathered(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 }), { kind: 'concrete', grime: 1.4, fade: 0.3, flood: FLOOD_LINE }))
+  return tileMaterial
+}
+
 const facing = (e: Edge, x: number, y: number, z: number) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), e.yaw), new THREE.Vector3(1, 1, 1))
 
 /**
@@ -655,7 +749,6 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
   const plain = cityMat(pick(['#8e8a82', '#9a958b', '#7f7b74']))
   const { edges, cx, cz } = footprintEdges(pts)
   const height = GROUND_FLOOR + floors * FLOOR
-  const shutterColor = pick(['#8f8a80', '#7d8288', '#a39d90', '#6e6a62'])
   const add = (kind: PartKind, m: THREE.Matrix4, color: THREE.ColorRepresentation) => local.push([kind, m, color])
 
   // Arcades (騎樓) along the street: the ground floor steps back ARCADE metres behind a row
@@ -691,14 +784,18 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
     for (const e of edges) {
       // Some walls have come down entirely.
       if (rand() < 0.25) continue
-      const holes: Hole[] = []
+      const holes: Hole[] = groundFloorHoles(e.len, streetSide(e))
       const bays = windowBays(e.len)
       for (let f = 0; f < floors; f++) for (let b = 0; b < bays; b++) holes.push({ x: -e.len / 2 + (b + 0.5) * (e.len / bays), y: GROUND_FLOOR + f * FLOOR + 0.95, w: Math.min(1.8, (e.len / bays) * 0.7), h: 1.4 })
-      const wall = new THREE.Mesh(jaggedWall(e.len + 0.3, top * range(0.35, 0.95), range(0.4, 0.95), e.len > 3 ? holes : []), clad)
+      const { geometry, below } = jaggedWall(e.len + 0.3, top * range(0.35, 0.95), range(0.4, 0.95), e.len > 3 ? holes : [])
+      const wall = new THREE.Mesh(geometry, clad)
       wall.position.set(e.mx, 0, e.mz)
       wall.rotation.y = e.yaw
       g.add(wall)
+      floorLedge(g, e, below, clad)
     }
+    // The ground floor's tiles, still there under the rubble and the weeds.
+    g.add(extrudeFootprint(pts, 0.04, floorTiles(), 0))
     if (ruin === 'collapsed') {
       const slabMat = cityMat(pick(CONCRETE))
       // Floor slabs broken into pieces a few metres across, heaped inside the footprint.
@@ -782,19 +879,56 @@ export function mappedBuilding({ pts, floors, ruin = 'none', streetSide, signs =
       }
     }
     if (!street || e.len < 3) continue
-    // Ground floor onto the street: a dark shopfront behind a part-rolled shutter.
+    // Ground floor onto the street: a row of shops 4–5 m wide, each behind its own part-rolled
+    // shutter under its own signboard, pilasters between them, and here and there the door to
+    // the stairs up beside a shop.
     const sw = e.len - 1
-    const shopFront = box(sw, GROUND_FLOOR - 0.9, 0.05, cityMat('#141210', { kind: 'paint', grime: 0.2 }))
-    shopFront.position.set(e.mx + e.nx * (0.03 - back), (GROUND_FLOOR - 0.9) / 2, e.mz + e.nz * (0.03 - back))
-    shopFront.rotation.y = e.yaw
-    g.add(shopFront)
-    const shutterH = (GROUND_FLOOR - 0.9) * pick([1, 1, 0.75, 0.45, 0.2])
-    add('shutter', facing(e, e.mx + e.nx * (0.08 - back), GROUND_FLOOR - 0.9 - shutterH / 2, e.mz + e.nz * (0.08 - back)).scale(new THREE.Vector3(sw, shutterH, 1)), shutterColor)
-    if (ruin !== 'collapsed') {
-      const fascia = new THREE.Mesh(new THREE.BoxGeometry(sw + 0.4, 0.9, 0.12), [plain, plain, plain, plain, signMaterial(), plain])
-      fascia.position.set(e.mx + e.nx * 0.08, GROUND_FLOOR - 0.55, e.mz + e.nz * 0.08)
-      fascia.rotation.y = e.yaw
-      g.add(fascia)
+    const ax = Math.cos(e.yaw)
+    const az = -Math.sin(e.yaw)
+    const units = Math.max(1, Math.round(sw / 4.6))
+    const unitW = sw / units
+    const dark = cityMat('#141210', { kind: 'paint', grime: 0.2 })
+    // Somewhere along the street from here, at depth `inset` behind the facade line.
+    const at = (along: number, inset: number) => [e.mx + ax * along - e.nx * inset, e.mz + az * along - e.nz * inset] as const
+    let doors = 0
+    for (let u = 0; u < units; u++) {
+      const mid = -sw / 2 + (u + 0.5) * unitW
+      const side = rand() < 0.5 ? -1 : 1
+      // At least one door per frontage, on a unit wide enough to spare it.
+      const withDoor = unitW > 3.4 && (rand() < 0.45 || (u === units - 1 && doors === 0))
+      if (withDoor) doors++
+      const shopW = (withDoor ? unitW - STAIR_DOOR : unitW) - 0.3
+      const shopMid = mid - (withDoor ? side * (STAIR_DOOR / 2) : 0)
+      const [fx, fz] = at(shopMid, back - 0.03)
+      const shopFront = box(shopW, GROUND_FLOOR - 0.9, 0.05, dark)
+      shopFront.position.set(fx, (GROUND_FLOOR - 0.9) / 2, fz)
+      shopFront.rotation.y = e.yaw
+      g.add(shopFront)
+      const shutterH = (GROUND_FLOOR - 0.9) * pick([1, 1, 0.75, 0.45, 0.2])
+      const [tx, tz] = at(shopMid, back - 0.08)
+      add('shutter', facing(e, tx, GROUND_FLOOR - 0.9 - shutterH / 2, tz).scale(new THREE.Vector3(shopW, shutterH, 1)), pick(['#8f8a80', '#7d8288', '#a39d90', '#6e6a62']))
+      if (withDoor) {
+        const [dx, dz] = at(mid + side * (unitW / 2 - STAIR_DOOR / 2 - 0.15), back)
+        const door = stairDoor()
+        door.position.set(dx, 0, dz)
+        door.rotation.y = e.yaw
+        g.add(door)
+      }
+      // A pilaster where this shop meets the next.
+      if (u > 0) {
+        const [px, pz] = at(-sw / 2 + u * unitW, back - 0.1)
+        const pilaster = box(0.3, GROUND_FLOOR, 0.25, plain)
+        pilaster.position.set(px, GROUND_FLOOR / 2, pz)
+        pilaster.rotation.y = e.yaw
+        g.add(pilaster)
+      }
+      if (ruin !== 'collapsed') {
+        const [sx, sz] = at(mid, -0.08)
+        const fascia = new THREE.Mesh(new THREE.BoxGeometry(unitW - 0.1, 0.9, 0.12), [plain, plain, plain, plain, signMaterial(), plain])
+        fascia.position.set(sx, GROUND_FLOOR - 0.55, sz)
+        fascia.rotation.y = e.yaw
+        g.add(fascia)
+      }
     }
     if (signs && ruin === 'none' && e.len > 4) {
       const holder = new THREE.Group()

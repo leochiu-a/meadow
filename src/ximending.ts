@@ -194,10 +194,11 @@ function meadowColor(x: number, z: number, color: THREE.Color) {
 }
 
 // Meadow wherever earth shows through; on surviving paving only the odd weed in a crack.
-function cityGrass(blocked: Here, groundAt: (x: number, z: number) => number, overgrownAt: (x: number, z: number) => number, crackCells: Set<number>) {
+// tiled(x, z): on a ruin's ground-floor tiles, where weeds only come up between them.
+function cityGrass(blocked: Here, groundAt: (x: number, z: number) => number, overgrownAt: (x: number, z: number) => number, crackCells: Set<number>, tiled: Here) {
   return (x: number, z: number, color: THREE.Color) => {
     if (blocked(x, z)) return 0
-    const open = overgrownAt(x, z)
+    const open = tiled(x, z) ? 0 : overgrownAt(x, z)
     // Turf creeps over what paving survives, and weeds come up through the cracks.
     // The rainbow crossing is kept mostly clear so its bands still read.
     const sparse = groundAt(x, z) === GROUND.kept ? 0.08 : 0.25
@@ -214,9 +215,10 @@ const SPECKS = ['#ffffff', '#f2eefc', '#e3dcf6', '#d9d2f2', '#fffbe8']
 const DRIFTS = [['#ff5a5a', '#ff7a6a'], ['#6f8cff', '#8aa4ff'], ['#c88cff', '#b07af0'], ['#ff8fb8', '#ffb3cf']]
 
 // Pale specks through the turf, saturated colour in tight drifts, as in the meadow.
-function cityFlowers(blocked: Here, overgrownAt: (x: number, z: number) => number) {
+function cityFlowers(blocked: Here, overgrownAt: (x: number, z: number) => number, tiled: Here) {
   return (x: number, z: number) => {
-    if (blocked(x, z) || overgrownAt(x, z) < 0.45) return null
+    // On a ruin's tiles, only the odd one that found a crack.
+    if (blocked(x, z) || overgrownAt(x, z) < 0.45 || (tiled(x, z) && rand() > 0.15)) return null
     const swathe = noise.noise(x * 0.12 - 20, z * 0.12) * 0.5 + 0.5
     const big = noise.noise(x * 0.18 + 30, z * 0.18) * 0.5 + 0.5 > 0.76
     if (!big && rand() > swathe ** 1.5 * 0.8) return null
@@ -270,6 +272,8 @@ async function build(scene: THREE.Scene, progress: Progress): Promise<World> {
   const { mesh, cracks, groundAt, overgrownAt } = createCityGround(data, { wild: reclaimed, rainbow })
   scene.add(mesh)
   const taken = occupancy()
+  // The ruins' tiled ground floors, which the grass only thinly covers.
+  const ruinFloors = occupancy()
   const city = new THREE.Group()
   const streetSide = (e: Pick<Edge, 'mx' | 'mz' | 'nx' | 'nz'>) => groundAt(e.mx + e.nx * 2.5, e.mz + e.nz * 2.5) !== GROUND.lot
 
@@ -350,6 +354,7 @@ async function build(scene: THREE.Scene, progress: Progress): Promise<World> {
       graffitiDone = true
     }
     taken.polygon(b.pts)
+    if (ruin !== 'none') ruinFloors.polygon(b.pts)
   }
 
   await progress(0.07, text.loading.city.street)
@@ -512,10 +517,10 @@ async function build(scene: THREE.Scene, progress: Progress): Promise<World> {
   const bounds: Area = [minX + 1, maxX - 1, minZ + 1, maxZ - 1]
   const area = (maxX - minX) * (maxZ - minZ)
   const grow = (f: number) => progress(0.14 + 0.46 * f, text.loading.city.grass)
-  scene.add(await createGrass({ bounds, target: Math.round(area * 26), place: cityGrass(blocked, groundAt, overgrownAt, crackCells), progress: grow }))
+  scene.add(await createGrass({ bounds, target: Math.round(area * 26), place: cityGrass(blocked, groundAt, overgrownAt, crackCells, (x, z) => ruinFloors.has(x, z)), progress: grow }))
   await progress(0.87, text.loading.city.flowers)
   // Sparser than the meadow (about 10 a square metre) but enough to dot the turf.
-  scene.add(createFlowers({ bounds, target: Math.round(area * 3), place: cityFlowers(blocked, overgrownAt) }))
+  scene.add(createFlowers({ bounds, target: Math.round(area * 3), place: cityFlowers(blocked, overgrownAt, (x, z) => ruinFloors.has(x, z)) }))
   await progress(0.91, text.loading.city.trees)
   // Trees seeded in the streets themselves, thickest where the street has gone wild, but
   // never crowding the station exits.

@@ -31,12 +31,16 @@ export function createComposer(renderer: THREE.WebGLRenderer, scene: THREE.Scene
     // shaped smudges that crawl over the lawn whenever the camera moves.
     halfRes: false,
   })
-  ao.setQualityMode('Performance')
+  // Medium, not Performance: with fewer samples the occlusion's noise stays fixed to the
+  // screen and reads as a grainy layer over the grass whenever the camera moves.
+  ao.setQualityMode('Medium')
   composer.addPass(ao)
 
   // One pass for bloom, tilt-shift and the grade, then SMAA on the final LDR image.
   // Tone map before grading: grading HDR values can go negative, which turns black.
-  const tilt = new TiltShiftEffect({ offset: -0.12, focusArea: 0.42, feather: 0.3, kernelSize: KernelSize.LARGE })
+  // Sharp band centred on the robot (which the camera frames mid-screen), wide enough that
+  // the robot and its surroundings never read as out of focus.
+  const tilt = new TiltShiftEffect({ offset: 0, focusArea: 0.55, feather: 0.32, kernelSize: KernelSize.MEDIUM })
   const saturation = new HueSaturationEffect({ saturation: 0.02, hue: 0.0 })
   const tone = new BrightnessContrastEffect({ brightness: 0.02, contrast: 0.05 })
   composer.addPass(
@@ -59,8 +63,8 @@ export function createComposer(renderer: THREE.WebGLRenderer, scene: THREE.Scene
     // horizon (pitch in radians), the sharp band widens and softens, like a lens at eye level.
     setPitch(pitch: number) {
       const low = 1 - THREE.MathUtils.smoothstep(pitch, 0.3, 0.72)
-      tilt.focusArea = 0.42 + 0.4 * low
-      tilt.feather = 0.3 + 0.2 * low
+      tilt.focusArea = 0.55 + 0.3 * low
+      tilt.feather = 0.32 + 0.18 * low
     },
     setRain(r: number) {
 

@@ -91,6 +91,22 @@ sun.shadow.normalBias = 0.03
 sun.shadow.radius = 3
 sun.shadow.intensity = 0.72
 scene.add(sun, sun.target)
+// The shadow box moves with the robot in whole shadow-map texels, so thin shadows (reeds,
+// leaves) stay put instead of shimmering as the camera glides. Snapped in the light's own
+// frame: x and y across the map, z along the light.
+const SHADOW_TEXEL = (sun.shadow.camera.right - sun.shadow.camera.left) / sun.shadow.mapSize.x
+const lightZ = look.sunDirection.clone().normalize()
+const lightX = new THREE.Vector3(0, 1, 0).cross(lightZ).normalize()
+const lightY = lightZ.clone().cross(lightX)
+const snapped = new THREE.Vector3()
+function snapToShadowTexels(p: THREE.Vector3) {
+  const snap = (v: number) => Math.round(v / SHADOW_TEXEL) * SHADOW_TEXEL
+  return snapped
+    .copy(lightX)
+    .multiplyScalar(snap(p.dot(lightX)))
+    .addScaledVector(lightY, snap(p.dot(lightY)))
+    .addScaledVector(lightZ, p.dot(lightZ))
+}
 
 const world = await def.build(scene, within(0.1, 0.75))
 await loading(0.75, text.loading.robot)
@@ -318,8 +334,9 @@ function step(dt: number) {
   rain.update(focus)
   setRain(r)
 
-  sun.position.copy(focus).addScaledVector(look.sunDirection, 40)
-  sun.target.position.copy(focus)
+  const shadowAt = snapToShadowTexels(focus)
+  sun.position.copy(shadowAt).addScaledVector(look.sunDirection, 40)
+  sun.target.position.copy(shadowAt)
 
   minimap?.update(robot.position, robot.heading, t)
   composer.render(dt)
