@@ -10,6 +10,8 @@ export default {
   scenes: { meadow: '草原', ximending: '廢土西門町' },
   minimap: { ximending: '西門町', hint: '點地圖讓機器人前往・M 開關地圖' },
 
+  menu: { continue: '繼續', newGame: '新遊戲', confirm: '開始新遊戲會清除目前的紀錄（找到的遺物、聽過的錄音與故事進度）。', erase: '清除並開始', back: '返回' },
+
   loading: {
     aria: '載入中',
     city: { roads: '鋪設街道…', blocks: '蓋起街區…', street: '擺放街景…', shophouses: '填滿店屋…', merge: '合併模型…', grass: '讓植物長回街上…', flowers: '開出野花…', trees: '種下樹木…' },

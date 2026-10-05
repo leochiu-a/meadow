@@ -10,6 +10,8 @@ export default {
   scenes: { meadow: 'the Meadow', ximending: 'Ruined Ximending' },
   minimap: { ximending: 'Ximending', hint: 'Click the map to send the robot there · M toggles the map' },
 
+  menu: { continue: 'Continue', newGame: 'New game', confirm: 'A new game erases your progress: the relics found, the recordings heard and the story so far.', erase: 'Erase and start', back: 'Back' },
+
   loading: {
     aria: 'Loading',
     city: { roads: 'Laying the streets…', blocks: 'Raising the blocks…', street: 'Dressing the streets…', shophouses: 'Filling in shophouses…', merge: 'Merging models…', grass: 'Letting the grass take the streets…', flowers: 'Growing wildflowers…', trees: 'Planting trees…' },

@@ -1,5 +1,6 @@
 import zh from './locales/zh.js'
 import en from './locales/en.js'
+import { reenter } from './save.js'
 
 // Every word the player reads, in Chinese or English: the choice saved in this browser, else
 // the browser's own language. Changing it reloads the page, like switching scenes.
@@ -25,5 +26,6 @@ export function setLang(next) {
   } catch {
     // Storage blocked: nowhere to keep the choice, so the browser's language stays.
   }
+  reenter()
   location.reload()
 }

@@ -22,6 +22,8 @@ import { createMixer, loadLevels } from './mixer.js'
 import { useAudio } from './voice.js'
 import { loading, loaded, within } from './loading.js'
 import { lang, text, setLang } from './i18n.js'
+import { hasSave, clearSave, lastScene, keepScene, reenter, reentered } from './save.js'
+import { showMenu } from './menu.js'
 
 // The page's own chrome, in the player's language.
 document.getElementById('hint').textContent = text.hint
@@ -40,8 +42,19 @@ document.body.appendChild(renderer.domElement)
 // Scenes are picked by ?scene=; each brings its own look, start point and patrol route.
 const SCENES = { meadow, ximending }
 const requested = new URLSearchParams(location.search).get('scene')
-// The story begins in the city.
-const sceneName = requested in SCENES ? requested : 'ximending'
+// Entering the game stops at the title menu, over the scene last played; the game reloading
+// itself (switching scene or language) goes straight back in.
+const entering = !reentered()
+const saved = hasSave()
+const wanted = requested in SCENES ? requested : lastScene()
+const sceneName = wanted in SCENES ? wanted : 'ximending'
+if (requested !== sceneName) history.replaceState(null, '', `?scene=${sceneName}`)
+keepScene(sceneName)
+// Every reload from here on is the game travelling, not the player entering.
+const travel = (name) => {
+  reenter()
+  location.search = `?scene=${name}`
+}
 const def = SCENES[sceneName]
 const { look } = def
 
@@ -93,7 +106,7 @@ const scavenge = createScavenge(scene, sceneName, world.relics, {
 // What has been found in each scene: this one's live, the other's as it was left.
 const found = { ximending: foundIn('ximending'), meadow: foundIn('meadow'), [sceneName]: scavenge.found }
 const story = createStory(sceneName, world.landmarks, {
-  goTo: (name) => (location.search = `?scene=${name}`),
+  goTo: travel,
   beginRoutine: () => routine?.begin(),
   play: (id) => echoes.replay(id),
   letGo: () => audio.release(),
@@ -169,7 +182,7 @@ const other = sceneName === 'meadow' ? 'ximending' : 'meadow'
 sceneButton.textContent = text.goTo(text.scenes[other])
 sceneButton.addEventListener('pointerdown', (e) => {
   e.stopPropagation()
-  location.search = `?scene=${other}`
+  travel(other)
 })
 soundButton.addEventListener('pointerdown', (e) => {
   e.stopPropagation()
@@ -237,20 +250,35 @@ await loading(0.88, text.loading.light)
 composer.render(0)
 loaded()
 run()
+// The title menu: the scene idles behind it, the robot parked and the camera circling.
+// Continue picks up here. A new game erases the save and reloads into the city, since every
+// module above has already read its progress; with nothing saved there is nothing to erase.
+let titled = entering
+if (entering) {
+  const choice = await showMenu(saved)
+  if (choice === 'new' && saved) {
+    clearSave()
+    travel('ximending')
+    // The page is leaving: nothing below may run and save again.
+    await new Promise(() => {})
+  }
+  titled = false
+}
 setTimeout(() => story.start(), 800)
 
 function step(dt) {
   windUniforms.uTime.value = t
   weather.update(dt)
-  // The robot stands still while the story log is up.
-  if (story.playing) robot.hold(0.1)
+  // The robot stands still while the story log or the title menu is up.
+  if (story.playing || titled) robot.hold(0.1)
+  if (titled) orbit.turn(dt * 0.08)
   robot.update(t, dt, orbit.yaw)
   const goal = story.objective
-  const busy = story.playing || !!echoes.playing
+  const busy = story.playing || titled || !!echoes.playing
   // In the city the radar only switches on once the story has begun.
   const radar = sceneName === 'meadow' || story.begun
   scavenge.update(t, dt, robot.position, !robot.touring, goal, echoes.beacons(), radar)
-  echoes.update(robot.position, story.playing)
+  echoes.update(robot.position, story.playing || titled)
   story.update(robot.position, !robot.touring)
   notebook.setRadar(radar)
   notebook.setSignal(scavenge.signal)

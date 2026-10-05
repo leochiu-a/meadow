@@ -56,6 +56,10 @@ export function createOrbit(dom, offset, onClick) {
     get yaw() {
       return now.yaw
     },
+    // Turn the camera by `radians`, as Q / E would.
+    turn(radians) {
+      goal.yaw += radians
+    },
     // Advance toward the goal framing and write the camera offset into `out`.
     update(dt, out) {
       goal.yaw += ((keys.has('e') ? 1 : 0) - (keys.has('q') ? 1 : 0)) * 1.6 * dt
