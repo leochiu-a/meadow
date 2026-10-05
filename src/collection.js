@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { createElement, Radar, Package } from 'lucide'
 import { relicModel } from './relics.js'
 import { text } from './i18n.js'
 
@@ -43,10 +44,12 @@ export function createCollectionUI(defs, found) {
   const radar = document.createElement('button')
   radar.id = 'radar'
   radar.title = text.collection.radar
-  radar.innerHTML = `<span class="dish">📡</span><span class="bars">${'<i></i>'.repeat(5)}</span><span class="count"></span>`
+  radar.innerHTML = `<span class="dish"></span><span class="bars">${'<i></i>'.repeat(5)}</span><span class="count"></span>`
   document.body.appendChild(radar)
   const bars = [...radar.querySelectorAll('.bars i')]
   const count = radar.querySelector('.count')
+  const dish = radar.querySelector('.dish')
+  dish.append(createElement(Radar))
 
   const toast = document.createElement('div')
   toast.id = 'toast'
@@ -102,10 +105,11 @@ export function createCollectionUI(defs, found) {
       bars.forEach((b, i) => b.classList.toggle('on', i < lit))
       radar.classList.toggle('hot', s > 0.75)
     },
-    // While the story has somewhere to go, the pill shows that instead of the count.
+    // While the story has somewhere to go, the pill shows that, with a parcel for the dish.
     setObjective(label) {
-      const text = label ? `📦 ${label}` : `${found.size} / ${defs.length}`
+      const text = label ?? `${found.size} / ${defs.length}`
       if (count.textContent !== text) count.textContent = text
+      if (radar.classList.contains('order') !== !!label) dish.replaceChildren(createElement(label ? Package : Radar))
       radar.classList.toggle('order', !!label)
     },
     collected(def) {
