@@ -4,10 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Meadow Bot</title>
-    <script>
-      // The loading screen shows on the very first visit only; every later load builds without it.
-      try { if (localStorage.getItem('meadow-loaded')) document.documentElement.classList.add('returning') } catch {}
-    </script>
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; background: #c9d6a3; }
       canvas { display: block; }
@@ -150,7 +146,6 @@
         font: 13px/1.5 "PingFang TC", "Heiti TC", system-ui, sans-serif; color: #fff6e2;
       }
       #loading.done { opacity: 0; pointer-events: none; }
-      .returning #loading { display: none; }
       #loading .box { display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(320px, calc(100vw - 32px)); }
       #loading .title { font-weight: 800; font-size: 18px; letter-spacing: 4px; }
       #loading .bar {
