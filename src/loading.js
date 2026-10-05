@@ -1,6 +1,6 @@
 // The loading screen in index.html: a bar that fills as the scene is built. Building runs on
 // the main thread, so each step waits for a painted frame before the work behind it starts.
-// It only shows on the first visit in a tab (see index.html); later loads build straight through.
+// It only shows on the very first visit (see index.html); later loads build straight through.
 const screen = document.getElementById('loading')
 const bar = screen.querySelector('.bar i')
 const label = screen.querySelector('.label')
@@ -18,7 +18,7 @@ export async function loading(fraction, text) {
 
 export function loaded() {
   try {
-    sessionStorage.setItem('meadow-loaded', '1')
+    localStorage.setItem('meadow-loaded', '1')
   } catch {}
   if (!shown) return screen.remove()
   screen.classList.add('done')

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Meadow Bot</title>
     <script>
-      // The loading screen is for the first visit in a tab; switching scenes reloads without it.
-      try { if (sessionStorage.getItem('meadow-loaded')) document.documentElement.classList.add('returning') } catch {}
+      // The loading screen shows on the very first visit only; every later load builds without it.
+      try { if (localStorage.getItem('meadow-loaded')) document.documentElement.classList.add('returning') } catch {}
     </script>
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; background: #c9d6a3; }
