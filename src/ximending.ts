@@ -514,7 +514,8 @@ async function build(scene: THREE.Scene, progress: Progress): Promise<World> {
   const grow = (f: number) => progress(0.14 + 0.46 * f, text.loading.city.grass)
   scene.add(await createGrass({ bounds, target: Math.round(area * 26), place: cityGrass(blocked, groundAt, overgrownAt, crackCells), progress: grow }))
   await progress(0.87, text.loading.city.flowers)
-  scene.add(createFlowers({ bounds, target: Math.round(area * 1.2), place: cityFlowers(blocked, overgrownAt) }))
+  // Sparser than the meadow (about 10 a square metre) but enough to dot the turf.
+  scene.add(createFlowers({ bounds, target: Math.round(area * 3), place: cityFlowers(blocked, overgrownAt) }))
   await progress(0.91, text.loading.city.trees)
   // Trees seeded in the streets themselves, thickest where the street has gone wild, but
   // never crowding the station exits.
