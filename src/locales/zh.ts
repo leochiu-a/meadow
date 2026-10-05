@@ -60,6 +60,15 @@ const zh = {
   routine: {
     title: '今日排程',
     items: { selfcheck: '晨間自檢', sun: '曬太陽充電', greet: '問候顧客', pigeons: '清空配送路徑', crossing: '遵守交通號誌', lens: '清潔鏡頭', patrol: '巡邏外送路線' },
+    times: { selfcheck: '06:00', sun: '06:30', greet: '07:10', pigeons: '07:40', crossing: '08:20', lens: '09:00', patrol: '09:30' },
+    nudges: {
+      sun: '電量 12%・建議找空曠處日照充電',
+      greet: '偵測到四足生物訊號・請靠近問候',
+      pigeons: '配送路徑上有鴿群・請清空',
+      crossing: '六號出口外有路口・號誌待命中',
+      lens: '鏡頭髒污 62%・需要水',
+      patrol: '外送路線尚有節點未抵達',
+    },
     lines: {
       boot: '今日排程：7 項',
       selfcheck: ['輪組 OK・貨箱 OK・喇叭 OK', '外觀：苔蘚覆蓋 38%'],

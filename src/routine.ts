@@ -15,6 +15,8 @@ const ITEMS = ['selfcheck', 'sun', 'greet', 'pigeons', 'crossing', 'lens', 'patr
 type Item = (typeof ITEMS)[number]
 const ENOUGH = 4
 const LONG_ENOUGH = 360
+// With no progress for this long, the robot reads out what its schedule says is next.
+const NUDGE_AFTER = 20
 
 /**
  * landmarks: { crossing, patrol } from the scene. animals: the scene's strays. robot: for
@@ -32,7 +34,7 @@ export function createRoutine({ landmarks, animals = [], robot, onGreet, onDone 
   const t = text.routine
   const panel = document.createElement('div')
   panel.id = 'routine'
-  panel.innerHTML = `<div class="ribbon">${t.title}</div><ul>${ITEMS.map((id) => `<li data-id="${id}">${t.items[id]}</li>`).join('')}</ul>`
+  panel.innerHTML = `<div class="ribbon">${t.title}</div><ul>${ITEMS.map((id) => `<li data-id="${id}"><span class="t">${t.times[id]}</span> ${t.items[id]}</li>`).join('')}</ul>`
   document.body.appendChild(panel)
 
   let active = false
@@ -41,10 +43,13 @@ export function createRoutine({ landmarks, animals = [], robot, onGreet, onDone 
   const done = new Set<Item>()
   const visited = new Set<number>()
   const wait = { greet: 0, crossing: 0 }
+  const nudged = new Set<Item>()
+  let stalled = 0
 
   function complete(id: Item, lines?: SysLine | readonly SysLine[]) {
     if (!active || done.has(id)) return
     done.add(id)
+    stalled = 0
     panel.querySelector(`[data-id="${id}"]`)?.classList.add('done')
     if (lines) say(lines)
     if (done.size >= ENOUGH) finish()
@@ -92,6 +97,16 @@ export function createRoutine({ landmarks, animals = [], robot, onGreet, onDone 
       if (!active) return
 
       elapsed += dt
+      stalled += dt
+      if (stalled > NUDGE_AFTER) {
+        stalled = 0
+        const pending = ITEMS.filter((id): id is Exclude<Item, 'selfcheck'> => id !== 'selfcheck' && !done.has(id))
+        const next = pending.find((id) => !nudged.has(id)) ?? (nudged.clear(), pending[0])
+        if (next) {
+          nudged.add(next)
+          say(t.nudges[next])
+        }
+      }
       still = speed < 0.02 && rain < 0.05 ? still + dt : 0
       if (still > 3) complete('sun', t.lines.sun)
       const flock = events.find((e) => e.kind === 'flutter' && Math.hypot(e.x - p.x, e.z - p.z) < 8)
