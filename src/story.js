@@ -213,9 +213,11 @@ export function createStory(sceneName, landmarks = {}, hooks) {
     collected() {
       setTimeout(newOrder, 7000)
     },
-    update(robot) {
+    // manual: the player is steering. Arriving at Exit 6 or at her door only counts then,
+    // so the patrol never walks into the story's turning points on its own.
+    update(robot, manual) {
       const goal = objective()
-      if (!goal || playing || Math.hypot(robot.x - goal.x, robot.z - goal.z) > 2.5) return
+      if (!goal || playing || !manual || Math.hypot(robot.x - goal.x, robot.z - goal.z) > 2.5) return
       if (sceneName === 'ximending' && state.restored) {
         state.city = true
         save()

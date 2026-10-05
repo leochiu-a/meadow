@@ -35,7 +35,7 @@ export default {
     groups: { before: '2049 — 2054', night: '2054.04.30', after: 'Afterwards' },
   },
 
-  echo: { detected: 'Abnormal audio detected · aligning…', aligned: 'Aligned', saved: 'Saved to timeline' },
+  echo: { detected: 'Abnormal audio detected……', saved: 'Saved to timeline' },
 
   // What DLV-06's transcript makes of each recording (see echoes.js for when each line shows).
   echoes: {

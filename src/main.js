@@ -113,8 +113,12 @@ const timeline = createTimeline({
   relics: [...RELICS.ximending, ...RELICS.meadow],
   echoes: ECHOES,
   has: (e) => (e.kind === 'relic' ? found[e.scene].has(e.id) : echoes.heard.has(e.id)),
-  // The village's things only once the robot is on its way there.
-  shown: (e) => (e.kind === 'relic' ? e.scene === sceneName || story.city || found[e.scene].size > 0 : story.open(e)),
+  // The village's things only once the robot is on its way there, and the last night only
+  // once its recordings can be read (or something from it has turned up).
+  shown: (e) =>
+    e.kind === 'echo'
+      ? story.open(e)
+      : found[e.scene].has(e.id) || ((e.scene === sceneName || story.city) && (!e.when?.startsWith('2054-04-30') || story.open({ act: 2 }))),
   released: () => story.released,
   onReplay: (id) => echoes.replay(id),
 })
@@ -249,7 +253,7 @@ function step(dt) {
   const radar = sceneName === 'meadow' || story.begun
   scavenge.update(t, dt, robot.position, !robot.touring, goal, echoes.beacons(), radar)
   echoes.update(robot.position, story.playing)
-  story.update(robot.position)
+  story.update(robot.position, !robot.touring)
   timeline.setRadar(radar)
   timeline.setSignal(scavenge.signal)
   timeline.setObjective(goal?.label)

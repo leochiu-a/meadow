@@ -43,6 +43,8 @@ function portraits(relics) {
 
 const NIGHT = '2054-04-30'
 const label = (when) => (!when ? '' : when.startsWith(NIGHT) ? when.slice(11) : when.replaceAll('-', '.'))
+// What a slot not found yet shows for its time: a minute on the last night, a year before.
+const unknownTime = (when) => (!when ? '' : when.startsWith(NIGHT) ? '??:??' : '????')
 const wave = () => createElement(AudioWaveform).outerHTML
 
 /**
@@ -84,15 +86,15 @@ export function createTimeline({ relics, echoes, has, shown, released, onReplay 
 
   function show(e) {
     const got = has(e)
-    const time = got || e.when?.startsWith(NIGHT) ? label(e.when) : ''
+    const time = label(e.when)
     if (e.kind === 'relic') {
       detail.innerHTML = got
         ? `<img src="${pics[e.id]}" alt=""><div><small>${time}</small><b>${e.name}</b><p>${e.story}</p></div>`
-        : `<img class="unknown" src="${pics[e.id]}" alt=""><div><small>${got ? time : '??:??'}</small><b>${text.timeline.unknown}</b><p>${text.timeline.clue(e.hint)}</p></div>`
+        : `<img class="unknown" src="${pics[e.id]}" alt=""><div><small>${unknownTime(e.when)}</small><b>${text.timeline.unknown}</b><p>${text.timeline.clue(e.hint)}</p></div>`
       return
     }
     if (!got) {
-      detail.innerHTML = `<span class="icon unknown">${wave()}</span><div><small>??:??</small><b>${text.timeline.unknown}</b><p>${text.timeline.area(e.place)}</p></div>`
+      detail.innerHTML = `<span class="icon unknown">${wave()}</span><div><small>${unknownTime(e.when)}</small><b>${text.timeline.unknown}</b><p>${text.timeline.area(e.place)}</p></div>`
       return
     }
     const gone = released()
@@ -122,7 +124,7 @@ export function createTimeline({ relics, echoes, has, shown, released, onReplay 
         const slot = document.createElement('button')
         slot.className = `slot ${e.kind}${got ? '' : ' missing'}`
         const face = e.kind === 'relic' ? `<img src="${pics[e.id]}" alt="">` : `<span class="icon">${wave()}</span>`
-        const time = got ? label(e.when) : g.key === 'after' ? '' : '??:??'
+        const time = got ? label(e.when) : unknownTime(e.when)
         slot.innerHTML = `${face}<small>${time}</small><span>${got ? (e.kind === 'relic' ? e.name : e.place) : text.timeline.unknown}</span>`
         slot.addEventListener('click', () => show(e))
         track.appendChild(slot)

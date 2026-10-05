@@ -5,6 +5,7 @@ import { text } from './i18n.js'
 // open and it plays: the mix ducks, a sound with nothing visible making it, and the robot's
 // transcript underneath. What was heard is kept in this browser; the timeline replays it.
 // `cues` are the seconds into the recording each transcript line appears (see the locales).
+// `after`: only decodable once that one has been heard (her steps follow his call).
 
 export const ECHOES = [
   { id: 'R1', act: 1, when: '2049-07-22 14:10', cues: [3, 5.5, 7.5, 10] },
@@ -18,7 +19,7 @@ export const ECHOES = [
   { id: 'R9', act: 2, when: '2054-04-30 23:31', cues: [1.5, 5.5] },
   { id: 'R10', act: 2, when: '2054-04-30 23:33', cues: [1.5, 4.5] },
   { id: 'R11', act: 2, when: '2054-04-30 23:38', cues: [5, 8, 14, 17.5] },
-  { id: 'R12', act: 2, when: '2054-04-30 23:41', cues: [7] },
+  { id: 'R12', act: 2, when: '2054-04-30 23:41', cues: [7], after: 'R11' },
   { id: 'R13', act: 2, when: '2054-04-30 23:47', cues: [2.6, 4.3, 6.6] },
   { id: 'R14', act: 3, when: '2054-04-30 23:52', cues: [5, 6.5, 9] },
 ].map((e) => ({ ...e, ...text.echoes[e.id] }))
@@ -57,6 +58,7 @@ export function createEchoes(audio, spots = {}, { isOpen, onStart, onHeard }) {
   const sub = hud.querySelector('.sub')
   let playing = null
   let timers = []
+  const ready = (def) => isOpen(def) && (!def.after || heard.has(def.after))
 
   // Plays def's recording with its transcript; resolves once it is over.
   function play(def, where) {
@@ -68,7 +70,7 @@ export function createEchoes(audio, spots = {}, { isOpen, onStart, onHeard }) {
     head.textContent = text.echo.detected
     sub.textContent = ''
     hud.className = 'show'
-    later(lead, () => (head.textContent = `${text.echo.aligned}・${def.when}`))
+    later(lead, () => (head.textContent = `▶ ${def.when}`))
     def.cues.forEach((c, i) => later(lead + c * 1000, () => (sub.textContent = def.lines[i])))
     return new Promise((resolve) =>
       later(lead + length * 1000, () => {
@@ -97,14 +99,14 @@ export function createEchoes(audio, spots = {}, { isOpen, onStart, onHeard }) {
     },
     // Where the open, unheard recordings lie, for the radar.
     beacons() {
-      return ECHOES.filter((d) => spots[d.id] && !heard.has(d.id) && isOpen(d)).map((d) => spots[d.id])
+      return ECHOES.filter((d) => spots[d.id] && !heard.has(d.id) && ready(d)).map((d) => spots[d.id])
     },
     // busy: something else holds the stage (the story log), so nothing starts now.
     update(robot, busy) {
       if (playing || busy) return
       for (const def of ECHOES) {
         const spot = spots[def.id]
-        if (!spot || heard.has(def.id) || !isOpen(def)) continue
+        if (!spot || heard.has(def.id) || !ready(def)) continue
         if (Math.hypot(robot.x - spot.x, robot.z - spot.z) < RADIUS) return start(def, spot)
       }
     },

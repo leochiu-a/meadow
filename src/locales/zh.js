@@ -35,7 +35,7 @@ export default {
     groups: { before: '2049 — 2054', night: '2054.04.30', after: '之後' },
   },
 
-  echo: { detected: '偵測到異常音訊・對齊中…', aligned: '對齊完成', saved: '已存入時間線' },
+  echo: { detected: '偵測到異常音訊……', saved: '已存入時間線' },
 
   // What DLV-06's transcript makes of each recording (see echoes.js for when each line shows).
   echoes: {

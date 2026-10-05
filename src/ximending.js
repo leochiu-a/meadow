@@ -808,8 +808,9 @@ function echoSpots(nav) {
     R8: [[redHouse[0] - 6, redHouse[1] + 13]],
     R9: [at(chengdu, chengduXining, 0.4), [at(chengdu, chengduXining, 0.9), chengdu]],
     R10: [at(chengdu, emei, 0.55), [at(chengdu, emei, 0.1), emei]],
+    // Close enough that waiting where he called her name brings her steps three minutes on.
     R11: [outOfExit6(1.5)],
-    R12: [outOfExit6(8)],
+    R12: [outOfExit6(5)],
     R13: [[emei[0] - 26, emei[1]]],
     R14: [start],
   }
