@@ -82,6 +82,11 @@ const zh = {
     },
   },
 
+  guide: {
+    echoes: '音訊緩衝區有未讀取的片段・往雷達訊號最強的方向走',
+    goal: (label: string) => `${label}・跟著雷達的訊號前往`,
+  },
+
   companion: {
     adopted: ['……', '顧客未離開', '登錄為常客：一號顧客'],
     didYouHear: '……你也聽到了嗎？',

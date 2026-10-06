@@ -15,6 +15,7 @@ import { createNotebook } from './notebook.ts'
 import { createStory } from './story.ts'
 import { ECHOES, createEchoes } from './echoes.ts'
 import { createRoutine } from './routine.ts'
+import { createGuide } from './guide.ts'
 import { createCompanion } from './companion.ts'
 import { createWishes } from './wishes.ts'
 import { createSettings, loadLevels } from './settings.ts'
@@ -163,6 +164,12 @@ const routine =
   sceneName === 'ximending'
     ? createRoutine({ landmarks: world.landmarks, animals: world.animals, robot, onGreet: (a) => companion.greeted(a), onDone: () => story.begin() })
     : null
+const guide = createGuide(() => {
+  if (!story.begun) return null
+  const goal = story.objective
+  const line = goal ? text.guide.goal(goal.label) : echoes.beacons().length ? text.guide.echoes : null
+  return line ? { key: `${echoes.heard.size}|${scavenge.found.size}|${goal?.label}`, line } : null
+})
 const wishes = createWishes(scene, sceneName, world.landmarks, { song: (timbre) => audio.song(timbre), wheels: () => audio.wheels() }, echoes.heard)
 // In the village the music box plays from the cottage now and then, as it does every evening.
 let musicBoxIn = 20
@@ -295,6 +302,7 @@ function step(dt: number) {
   notebook.setObjective(goal?.label)
   world.update(t, dt, robot.position)
   routine?.update(dt, { rain: weather.rain, events: world.events })
+  guide.update(dt, busy)
   companion.update(t, dt, busy)
   wishes.update(dt, robot.position, robot.speed)
   if (world.landmarks.cottage && !busy && (musicBoxIn -= dt) <= 0) {

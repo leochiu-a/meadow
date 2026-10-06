@@ -82,6 +82,11 @@ export default {
     },
   },
 
+  guide: {
+    echoes: 'Unread fragments in the audio buffer · head where the radar signal is strongest',
+    goal: (label: string) => `${label} · follow the radar signal there`,
+  },
+
   companion: {
     adopted: ['……', 'Customer has not left', 'Registered as regular: Customer No. 1'],
     didYouHear: '…Did you hear that too?',
