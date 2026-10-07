@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "meadow-bot", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "--port", "5179"], "port": 5179 }
+    { "name": "meadow-bot", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "--port", "5179"], "port": 5179 },
+    { "name": "meadow-bot-alt", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "--port", "5181"], "port": 5181 }
   ]
 }
