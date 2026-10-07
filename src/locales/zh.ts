@@ -65,8 +65,8 @@ const zh = {
     times: { selfcheck: '06:00', sun: '06:30', greet: '07:10', pigeons: '07:40', crossing: '08:20', lens: '09:00', patrol: '09:30' },
     nudges: {
       sun: '電量 12%・需要日照充電',
-      greet: '偵測到四足生物訊號・請靠近問候',
-      pigeons: '配送路徑上有鴿群・請清空',
+      greet: '附近有四足顧客・問候 5 位（地圖上有標示）',
+      pigeons: '配送路徑上有鴿群・開過去把牠們趕走',
       crossing: '六號出口外有路口・號誌待命中',
       lens: '鏡頭髒污 62%・需要水',
       patrol: '外送路線尚有節點未抵達',

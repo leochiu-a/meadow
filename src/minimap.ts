@@ -61,12 +61,29 @@ export function createMinimap(spec: MinimapSpec, onPick: (x: number, z: number) 
   })
 
   return {
-    // robot: world position; heading in radians (0 = +x).
-    update(robot: PointXZ, heading: number, t: number) {
+    // robot: world position; heading in radians (0 = +x). marks: places to point the player at.
+    update(robot: PointXZ, heading: number, t: number, marks: PointXZ[] = []) {
 
       if (frame.classList.contains('hidden')) return
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.drawImage(plan, 0, 0, w, h)
+      // Marks: an orange dot with a ripple, a beat behind the robot's own.
+      const ripple = (t * 0.9 + 0.5) % 1
+      for (const m of marks) {
+        const [mx, my] = px(m.x, m.z)
+        ctx.strokeStyle = `rgba(210,100,58,${0.9 * (1 - ripple)})`
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.arc(mx, my, 4 + ripple * 8, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.fillStyle = '#d2643a'
+        ctx.strokeStyle = '#fff6e2'
+        ctx.lineWidth = 1.5
+        ctx.beginPath()
+        ctx.arc(mx, my, 4, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+      }
       const [rx, ry] = px(robot.x, robot.z)
       // Breathing halo.
       const pulse = (t * 0.9) % 1

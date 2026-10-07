@@ -352,6 +352,6 @@ function step(dt: number) {
   sun.position.copy(shadowAt).addScaledVector(look.sunDirection, 40)
   sun.target.position.copy(shadowAt)
 
-  minimap?.update(robot.position, robot.heading, t)
+  minimap?.update(robot.position, robot.heading, t, routine?.marks)
   composer.render(dt)
 }

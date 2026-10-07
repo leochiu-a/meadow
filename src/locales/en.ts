@@ -65,8 +65,8 @@ export default {
     times: { selfcheck: '06:00', sun: '06:30', greet: '07:10', pigeons: '07:40', crossing: '08:20', lens: '09:00', patrol: '09:30' },
     nudges: {
       sun: 'Battery 12% · needs sunlight to charge',
-      greet: 'Four-legged signal detected · move closer to greet',
-      pigeons: 'Birds on the delivery path · clear them',
+      greet: 'Four-legged customers nearby · greet 5 of them (marked on the map)',
+      pigeons: 'Pigeons on the delivery path · drive into them to clear it',
       crossing: 'Crossing outside Exit 6 · signal on standby',
       lens: 'Lens 62% dirty · needs water',
       patrol: 'Route nodes still unreached',
