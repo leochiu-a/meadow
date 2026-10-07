@@ -1,8 +1,9 @@
 import { createElement, Settings } from 'lucide'
 import { CHANNELS, DEFAULT_LEVELS } from './audio.ts'
 import { lang, text, type Lang } from './i18n.ts'
+import { QUALITIES, FRAME_RATES, type Graphics } from './graphics.ts'
 
-// Settings: a gear button opens one panel with the language, sound on or off, and the
+// Settings: a gear button opens one panel with the language, graphics, sound on or off, and the
 // mixer (a slider for the master volume and one per channel, and a button back to the
 // default mix). Choices are kept in this browser.
 const KEY = 'meadow-bot:mixer'
@@ -42,9 +43,34 @@ export function loadLevels(): Levels {
   }
 }
 
+// What the panel drives for graphics: the current choice, applied as soon as it changes.
+export interface GraphicsTarget {
+  readonly value: Graphics
+  set(next: Graphics): void
+}
+
+// A row of buttons, one pressed; picking another calls pick with it.
+function choiceRow<T>(label: string, options: readonly [T, string][], current: T, pick: (value: T) => void) {
+  const row = document.createElement('div')
+  row.className = 'row'
+  row.innerHTML = `<span>${label}</span><div class="choice"></div>`
+  const buttons = options.map(([value, name]) => {
+    const b = document.createElement('button')
+    b.textContent = name
+    b.setAttribute('aria-pressed', String(value === current))
+    b.addEventListener('click', () => {
+      for (const other of buttons) other.setAttribute('aria-pressed', String(other === b))
+      pick(value)
+    })
+    return b
+  })
+  row.querySelector('.choice')!.append(...buttons)
+  return row
+}
+
 // credit: the scene's map data attribution, if it has one. onLanguage(code) switches the
 // game's language (it reloads the page).
-export function createSettings(audio: SoundTarget, levels: Levels, credit: string | undefined, onLanguage: (code: Lang) => void) {
+export function createSettings(audio: SoundTarget, levels: Levels, graphics: GraphicsTarget, credit: string | undefined, onLanguage: (code: Lang) => void) {
   const button = document.createElement('button')
   button.id = 'settings-button'
   button.append(createElement(Settings))
@@ -74,7 +100,11 @@ export function createSettings(audio: SoundTarget, levels: Levels, credit: strin
   sound.innerHTML = `<span>${text.settings.sound}</span><input type="checkbox" role="switch">`
   const soundSwitch = sound.querySelector('input')!
   soundSwitch.addEventListener('change', () => (soundSwitch.checked = audio.toggle()))
-  panel.append(language, sound)
+  const quality = choiceRow(text.settings.quality, QUALITIES.map((q) => [q, text.settings.qualities[q]] as const), graphics.value.quality, (q) =>
+    graphics.set({ ...graphics.value, quality: q }),
+  )
+  const fps = choiceRow(text.settings.fps, FRAME_RATES.map((f) => [f, String(f)] as const), graphics.value.fps, (f) => graphics.set({ ...graphics.value, fps: f }))
+  panel.append(language, quality, fps, sound)
 
   const save = () => {
     try {

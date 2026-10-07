@@ -3,7 +3,7 @@ import type { Locale } from './zh.ts'
 export default {
   htmlLang: 'en',
   hint: 'Click to turn on sound · WASD / arrow keys to move · click the ground or map to go there · drag / Q E to turn · scroll to zoom · R rain · B log · M map · idle 4 s to auto-tour',
-  settings: { title: 'Settings', language: 'Language', sound: 'Sound' },
+  settings: { title: 'Settings', language: 'Language', sound: 'Sound', quality: 'Graphics', qualities: { low: 'Low', medium: 'Medium', high: 'High' }, fps: 'Frame rate' },
   mixer: { master: 'Master', music: 'Music', ambience: 'Ambience', weather: 'Weather', animals: 'Animals', robot: 'Robot', echo: 'Story', ui: 'Interface', reset: 'Reset to default' },
   goTo: (scene: string) => `Go to ${scene}`,
   credit: 'Map data',

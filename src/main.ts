@@ -20,6 +20,7 @@ import { createGuide } from './guide.ts'
 import { createCompanion } from './companion.ts'
 import { createWishes } from './wishes.ts'
 import { createSettings, loadLevels } from './settings.ts'
+import { loadGraphics, saveGraphics, QUALITY, type Graphics } from './graphics.ts'
 import { loading, loaded, within } from './loading.ts'
 import { setLang, text } from './i18n.ts'
 import { hasSave, clearSave, lastScene, keepScene, reenter, reentered } from './save.ts'
@@ -37,7 +38,8 @@ byId('hint').textContent = text.hint
 byId('loading').setAttribute('aria-label', text.loading.aria)
 
 const renderer = new THREE.WebGLRenderer({ powerPreference: 'high-performance', antialias: false, stencil: false })
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
+const graphics = loadGraphics()
+renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY[graphics.quality].pixelRatio))
 renderer.setSize(innerWidth, innerHeight)
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
@@ -179,6 +181,7 @@ const wishes = createWishes(scene, sceneName, world.landmarks, { song: (timbre) 
 let musicBoxIn = 20
 await loading(0.77, text.loading.camera)
 const { composer, ao, setRain, setPitch } = createComposer(renderer, scene, camera)
+ao.enabled = QUALITY[graphics.quality].ao
 
 // Weather: wet surfaces reflect an overcast sky, as strongly as they are wet.
 applyWet(scene)
@@ -196,7 +199,16 @@ const minimap = world.minimap ? createMinimap(world.minimap, (x, z) => robot.goT
 // Browsers only allow audio after a user gesture, so the soundscape starts on first input.
 // Switching language reloads into the same place: back into play, or to the title menu.
 // Scenes built from map data credit it at the foot of the panel.
-const settings = createSettings(audio, levels, def.attribution, (code) => {
+// Graphics apply at once: pixel density and ambient occlusion for quality, the frame cap for fps.
+const applyGraphics = (next: Graphics) => {
+  Object.assign(graphics, next)
+  saveGraphics(graphics)
+  const q = QUALITY[graphics.quality]
+  ao.enabled = q.ao
+  renderer.setPixelRatio(Math.min(devicePixelRatio, q.pixelRatio))
+  resize()
+}
+const settings = createSettings(audio, levels, { value: graphics, set: applyGraphics }, def.attribution, (code) => {
   if (!titled) reenter()
   setLang(code)
 })
@@ -232,26 +244,26 @@ const orbit = createOrbit(renderer.domElement, look.camera.offset, (e) => {
   }
 })
 
-addEventListener('resize', () => {
+function resize() {
   fitCamera()
   renderer.setSize(innerWidth, innerHeight)
   composer.setSize(innerWidth, innerHeight)
   ao.setSize(innerWidth, innerHeight)
-})
+}
+addEventListener('resize', resize)
 
 const focus = robot.position.clone()
 const offset = orbit.update(0, new THREE.Vector3())
 camera.position.copy(focus).add(offset)
 camera.lookAt(focus)
 
-// Power: at most 30 frames a second (a slow diorama loses little), and none at all while
-// the window is in the background. Scene time only advances on rendered frames, so nothing
-// jumps when it resumes.
-const FRAME_MS = 1000 / 30
+// Power: at most 30 frames a second by default (a slow diorama loses little; 60 in the
+// settings), and none at all while the window is in the background. Scene time only advances
+// on rendered frames, so nothing jumps when it resumes.
 let last = 0
 let t = 0
 function frame(now: number) {
-  if (now - last < FRAME_MS - 2) return
+  if (now - last < 1000 / graphics.fps - 2) return
   const dt = last ? Math.min((now - last) / 1000, 1 / 20) : 1 / 30
   last = now
   t += dt

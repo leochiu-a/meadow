@@ -1,9 +1,9 @@
 // The save: every module keeps its own progress in this browser under `meadow-bot:`. Settings
-// (language, mixer) live there too but are not progress, so a new game keeps them. The scene
+// (language, mixer, graphics) live there too but are not progress, so a new game keeps them. The scene
 // last played is kept so Continue returns to it.
 
 const PREFIX = 'meadow-bot:'
-const SETTINGS = new Set([`${PREFIX}lang`, `${PREFIX}mixer`])
+const SETTINGS = new Set([`${PREFIX}lang`, `${PREFIX}mixer`, `${PREFIX}graphics`])
 const SCENE = `${PREFIX}scene`
 // Set just before the game reloads itself (switching scene or language): that reload goes
 // straight back in instead of stopping at the title menu.
