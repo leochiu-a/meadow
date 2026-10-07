@@ -15,6 +15,7 @@ import { createNotebook } from './notebook.ts'
 import { createStory } from './story.ts'
 import { ECHOES, createEchoes } from './echoes.ts'
 import { createRoutine } from './routine.ts'
+import { createBattery } from './battery.ts'
 import { createGuide } from './guide.ts'
 import { createCompanion } from './companion.ts'
 import { createWishes } from './wishes.ts'
@@ -160,9 +161,10 @@ const notebook = createNotebook({
 // Sounds the dog makes, alongside the scene's own.
 const petEvents: WorldEvent[] = []
 const companion = createCompanion(scene, world.nav, robot, petEvents)
+const battery = createBattery()
 const routine =
   sceneName === 'ximending'
-    ? createRoutine({ landmarks: world.landmarks, animals: world.animals, robot, onGreet: (a) => companion.greeted(a), onDone: () => story.begin() })
+    ? createRoutine({ landmarks: world.landmarks, animals: world.animals, robot, battery, onGreet: (a) => companion.greeted(a), onDone: () => story.begin() })
     : null
 const guide = createGuide(() => {
   if (!story.begun) return null
@@ -301,6 +303,8 @@ function step(dt: number) {
   notebook.setSignal(scavenge.signal)
   notebook.setObjective(goal?.label)
   world.update(t, dt, robot.position)
+  // The panel charges in clear weather once the robot is out on its day.
+  battery.update(dt, weather.rain < 0.05 && !titled && (!!routine?.active || story.begun))
   routine?.update(dt, { rain: weather.rain, events: world.events })
   guide.update(dt, busy)
   companion.update(t, dt, busy)

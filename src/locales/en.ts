@@ -57,6 +57,8 @@ export default {
     R14: { place: 'Emei Street', lines: ['(power cut)', '“Battery low.”', '“Order on hold…”'] },
   },
 
+  battery: { charging: 'Charging', idle: 'Needs sun', full: 'Charged' },
+
   routine: {
     title: 'Today’s schedule',
     items: { selfcheck: 'Morning self-check', sun: 'Solar charge', greet: 'Greet customers', pigeons: 'Clear delivery path', crossing: 'Obey traffic signals', lens: 'Clean lens', patrol: 'Patrol delivery route' },

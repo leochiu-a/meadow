@@ -1,10 +1,11 @@
 import { text } from './i18n.ts'
 import { say, type SysLine } from './syslog.ts'
 import type { Robot } from './robot.ts'
+import type { Battery } from './battery.ts'
 import type { Stray } from './strays.ts'
 import type { Landmarks, WorldEvent } from './world.ts'
 
-// DLV-06's day, from firmware thirty-one years old: a self-check, sun on its panel (any clear stretch counts, parked or rolling), greeting
+// DLV-06's day, from firmware thirty-one years old: a self-check, sun on its panel (its battery filling), greeting
 // customers, clearing its path, waiting at the crossing, its old patrol. Nothing is asked of
 // the player; a small list ticks off whatever happens, on patrol too. Once enough of the day
 // is done (or enough time has passed) it goes to load the next item, and the story begins.
@@ -17,22 +18,22 @@ const ENOUGH = 4
 const LONG_ENOUGH = 360
 // With no progress for this long, the robot reads out what its schedule says is next.
 const NUDGE_AFTER = 20
-// Clear-weather seconds the solar panel needs, parked or rolling.
-const SUN_NEEDED = 30
 
 /**
  * landmarks: { crossing, patrol } from the scene. animals: the scene's strays. robot: for
- * holding at the crossing. onGreet(animal) when it greets one, onDone() once the day is done.
+ * holding at the crossing. battery: the solar charge is done once it is full. onGreet(animal)
+ * when it greets one, onDone() once the day is done.
  */
 export interface RoutineOptions {
   landmarks: Landmarks
   animals?: Stray[]
   robot: Robot
+  battery: Battery
   onGreet?(animal: Stray): void
   onDone(): void
 }
 
-export function createRoutine({ landmarks, animals = [], robot, onGreet, onDone }: RoutineOptions) {
+export function createRoutine({ landmarks, animals = [], robot, battery, onGreet, onDone }: RoutineOptions) {
   const t = text.routine
   const panel = document.createElement('div')
   panel.id = 'routine'
@@ -41,7 +42,6 @@ export function createRoutine({ landmarks, animals = [], robot, onGreet, onDone 
 
   let active = false
   let elapsed = 0
-  let sunny = 0
   const done = new Set<Item>()
   const visited = new Set<number>()
   const wait = { greet: 0, crossing: 0 }
@@ -109,8 +109,7 @@ export function createRoutine({ landmarks, animals = [], robot, onGreet, onDone 
           say(t.nudges[next])
         }
       }
-      if (rain < 0.05) sunny += dt
-      if (sunny > SUN_NEEDED) complete('sun', t.lines.sun)
+      if (battery.full) complete('sun', t.lines.sun)
       const flock = events.find((e) => e.kind === 'flutter' && Math.hypot(e.x - p.x, e.z - p.z) < 8)
       if (flock) complete('pigeons', t.lines.pigeons(Math.floor(5 + Math.random() * 30)))
       if (rain > 0.3) complete('lens', t.lines.lens)

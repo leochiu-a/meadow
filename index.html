@@ -145,7 +145,7 @@
       #syslog p.out { opacity: 0; }
       /* Today's schedule: a small paper card ticking off the robot's day. */
       #routine {
-        position: fixed; right: 16px; top: 44px; padding: 22px 14px 10px; border-radius: 14px; background: #fff6e2;
+        position: fixed; right: 16px; top: 72px; padding: 22px 14px 10px; border-radius: 14px; background: #fff6e2;
         box-shadow: 0 0 0 3px #8a6a3e, 0 6px 16px rgba(40, 28, 10, 0.3); opacity: 0; transform: translateY(-8px); pointer-events: none;
         font: 700 12px/1.5 "PingFang TC", "Heiti TC", system-ui, sans-serif; color: #5a4024; transition: opacity 0.6s, transform 0.6s;
       }
@@ -159,6 +159,22 @@
       #routine li::before { content: "□ "; color: #b08a5a; }
       #routine li.done { color: #a08868; text-decoration: line-through; }
       #routine li.done::before { content: "☑ "; color: #6fae3e; }
+      /* The robot's battery, always in the top-right corner: a cell gauge, its level and whether the sun is on it. */
+      #battery {
+        position: fixed; right: 16px; top: 14px; display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px;
+        border-radius: 15px; background: #fff6e2; box-shadow: 0 0 0 3px #8a6a3e, 0 4px 12px rgba(40, 28, 10, 0.3); pointer-events: none;
+        font: 700 12px "PingFang TC", "Heiti TC", system-ui, sans-serif; color: #5a4024; transition: opacity 0.6s;
+      }
+      #battery .cell { position: relative; width: 30px; height: 14px; box-sizing: border-box; border: 2px solid #8a6a3e; border-radius: 4px; padding: 1px; }
+      #battery .cell::after { content: ""; position: absolute; right: -5px; top: 3px; width: 3px; height: 4px; border-radius: 0 2px 2px 0; background: #8a6a3e; }
+      #battery .cell b { display: block; height: 100%; border-radius: 2px; background: #e0a02e; transition: width 0.4s, background 0.4s; }
+      #battery .pct { font-variant-numeric: tabular-nums; min-width: 3ch; margin-left: 2px; }
+      #battery .state { font-weight: 600; color: #b08a5a; }
+      #battery[data-mode="charging"] .cell b { background: #6fae3e; animation: batteryPulse 1.4s ease-in-out infinite; }
+      #battery[data-mode="charging"] .state::before { content: "☀ "; color: #e0a02e; }
+      #battery[data-mode="full"] .cell b { background: #6fae3e; }
+      #battery[data-mode="full"] .state { color: #6fae3e; }
+      @keyframes batteryPulse { 50% { opacity: 0.55; } }
       /* Story log: the robot's system lines in terminal green, memories in plain text, the letter on paper. */
       #story {
         position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -302,7 +318,7 @@
       #menu button.primary:hover { background: #dc7248; }
       #menu button:disabled { cursor: default; opacity: 0.5; }
       body.titled #hint, body.titled #minimap, body.titled #radar, body.titled #controls,
-      body.titled #syslog, body.titled #routine { opacity: 0 !important; pointer-events: none !important; }
+      body.titled #syslog, body.titled #routine, body.titled #battery { opacity: 0 !important; pointer-events: none !important; }
       #settings-button {
         display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
         border: 0; border-radius: 50%; cursor: pointer;

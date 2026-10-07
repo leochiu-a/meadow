@@ -57,6 +57,8 @@ const zh = {
     R14: { place: '峨眉街', lines: ['（停電）', '「電量不足。」', '「訂單保留中……」'] },
   } satisfies EchoTexts,
 
+  battery: { charging: '充電中', idle: '等待日照', full: '充電完成' },
+
   routine: {
     title: '今日排程',
     items: { selfcheck: '晨間自檢', sun: '曬太陽充電', greet: '問候顧客', pigeons: '清空配送路徑', crossing: '遵守交通號誌', lens: '清潔鏡頭', patrol: '巡邏外送路線' },
