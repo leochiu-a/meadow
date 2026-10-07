@@ -2,14 +2,15 @@ import * as THREE from 'three'
 import { setTerrain, noise, rand, range, pick, smoothstep } from './terrain.ts'
 import { windUniforms } from './wind.ts'
 import { createCityGround, GROUND, SIDEWALK, VEHICLE, MALL } from './city-ground.ts'
-import { shophouse, mappedBuilding, toppledTower, flushCityParts, batchStatic, cityMat, GROUND_FLOOR, FLOOR } from './city.ts'
+import { shophouse, mappedBuilding, toppledTower, flushCityParts, cityMat, GROUND_FLOOR, FLOOR } from './city.ts'
 import { buildBlockers } from './collision.ts'
 import { createNavGrid } from './walkmap.ts'
 import { createCat, createDog, createPigeonFlock } from './strays.ts'
 import { car, streetLamp, redHouseDressing, mrtExit, giantScreen, discLamp, mallPole, facadeAd, newWorldTower, cinemaFront, ringTotem, haloPole, rooftopBillboard, noodleStand, noticeBoard, evacSign, sandbags } from './city-props.ts'
 import { graffiti } from './graffiti.ts'
-import { createGrass, createFlowers, createReeds, createTree, createBush, type Area, type Patch } from './vegetation.ts'
+import { createGrass, createFlowers, wildflowerColor, createReeds, createTree, createBush, type Area, type Patch } from './vegetation.ts'
 import { brickMaterial } from './bricks.ts'
+import { batchStatic } from './batch.ts'
 import { withCutaway } from './cutaway.ts'
 import { text } from './i18n.ts'
 import osm from './data/ximending.json'
@@ -211,9 +212,6 @@ function cityGrass(blocked: Here, groundAt: (x: number, z: number) => number, ov
   }
 }
 
-const SPECKS = ['#ffffff', '#f2eefc', '#e3dcf6', '#d9d2f2', '#fffbe8']
-const DRIFTS = [['#ff5a5a', '#ff7a6a'], ['#6f8cff', '#8aa4ff'], ['#c88cff', '#b07af0'], ['#ff8fb8', '#ffb3cf']]
-
 // Pale specks through the turf, saturated colour in tight drifts, as in the meadow.
 function cityFlowers(blocked: Here, overgrownAt: (x: number, z: number) => number, tiled: Here) {
   return (x: number, z: number) => {
@@ -222,8 +220,7 @@ function cityFlowers(blocked: Here, overgrownAt: (x: number, z: number) => numbe
     const swathe = noise.noise(x * 0.12 - 20, z * 0.12) * 0.5 + 0.5
     const big = noise.noise(x * 0.18 + 30, z * 0.18) * 0.5 + 0.5 > 0.76
     if (!big && rand() > swathe ** 1.5 * 0.8) return null
-    const drift = DRIFTS[Math.floor((noise.noise(x * 0.07, z * 0.07 + 9) * 0.5 + 0.5) * 3.99) % 4]
-    return { color: big ? pick(drift) : pick(SPECKS), big }
+    return { color: wildflowerColor(x, z, big), big }
   }
 }
 

@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { heightAt, rand, range, pick, noise } from './terrain.ts'
 import { addCircle, addSegment, addBox } from './collision.ts'
-import { brickMaterial } from './bricks.ts'
+import { sharedBrick } from './bricks.ts'
 import { createBush, createIvy, type IvyStrand } from './vegetation.ts'
 import { graffiti } from './graffiti.ts'
 import { weathered } from './weathering.ts'
@@ -16,8 +16,16 @@ const WOODISH = new Set([
 ])
 const hsl = { h: 0, s: 0, l: 0 }
 // Every prop material is weathered by kind: lights stay clean, metal rusts, timber gets
-// grain, and loud plastics fade harder in the sun.
+// grain, and loud plastics fade harder in the sun. One material per colour and options, so
+// the scene can merge parts of every prop that share it into one draw.
+const mats = new Map<string, THREE.MeshStandardMaterial>()
 const mat = (color: string, extra: THREE.MeshStandardMaterialParameters = {}) => {
+  const key = color + JSON.stringify(extra)
+  let m = mats.get(key)
+  if (!m) mats.set(key, (m = weatheredMat(color, extra)))
+  return m
+}
+const weatheredMat = (color: string, extra: THREE.MeshStandardMaterialParameters) => {
   const m = new THREE.MeshStandardMaterial({ color, roughness: 0.85, ...extra })
   if (extra.emissive) return m
   if (extra.metalness) return weathered(m, { kind: 'metal' })
@@ -171,7 +179,7 @@ export function litter(blocked: (x: number, z: number) => boolean, area: Bounds)
 const brickBox = (w: number, h: number, d: number, color: string) => {
   const geo = new THREE.BoxGeometry(w, h, d)
   setMetreUVs(geo, w, h, d)
-  return new THREE.Mesh(geo, brickMaterial(color))
+  return new THREE.Mesh(geo, sharedBrick(color))
 }
 
 // Arch outline: straight jambs up to `spring`, then a semicircle.
@@ -239,7 +247,7 @@ export function cottage(x: number, z: number, { w = 6, d = 4.5, h = 4.2, rotY = 
     centres.push(ax)
     facade.holes.push(archPath(new THREE.Path(), ax, halfW, spring, 0.02))
   }
-  const front = new THREE.Mesh(new THREE.ExtrudeGeometry(facade, { depth: t, bevelEnabled: false, curveSegments: 16 }), brickMaterial(color))
+  const front = new THREE.Mesh(new THREE.ExtrudeGeometry(facade, { depth: t, bevelEnabled: false, curveSegments: 16 }), sharedBrick(color))
   front.position.z = d / 2 - t
   g.add(front)
 
@@ -254,7 +262,7 @@ export function cottage(x: number, z: number, { w = 6, d = 4.5, h = 4.2, rotY = 
     const ring = new THREE.Shape()
     ring.absarc(0, 0, halfW + 0.16, 0, Math.PI, false)
     ring.absarc(0, 0, halfW, Math.PI, 0, true)
-    const trim = new THREE.Mesh(new THREE.ExtrudeGeometry(ring, { depth: 0.08, bevelEnabled: false, curveSegments: 16 }), brickMaterial('#7e4636'))
+    const trim = new THREE.Mesh(new THREE.ExtrudeGeometry(ring, { depth: 0.08, bevelEnabled: false, curveSegments: 16 }), sharedBrick('#7e4636'))
     trim.position.set(ax, spring, d / 2)
     g.add(trim)
     if (i === door) {

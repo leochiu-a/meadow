@@ -1,11 +1,12 @@
 import * as THREE from 'three'
-import { heightAt, setTerrain, noise, rand, range, pick } from './terrain.ts'
+import { heightAt, setTerrain, noise, rand, range } from './terrain.ts'
 import { meadowTerrain, createGround, surfaceAt, grassColor, PLAZA } from './meadow-terrain.ts'
 import { buildBlockers } from './collision.ts'
 import { createNavGrid } from './walkmap.ts'
+import { batchStatic } from './batch.ts'
 import { brickWall, brickPillar, brickArch, brickRubble, fallenChunk, flushBricks } from './bricks.ts'
 import * as props from './props.ts'
-import { createGrass, createFlowers, createReeds, createLupines, createIvy, createTree, createSapling, createBush, type Patch } from './vegetation.ts'
+import { createGrass, createFlowers, wildflowerColor, createReeds, createLupines, createIvy, createTree, createSapling, createBush, type Patch } from './vegetation.ts'
 import { createCow, createChicken, createFox, createVillager } from './animals.ts'
 import { graffitiOnWall } from './graffiti.ts'
 import { text } from './i18n.ts'
@@ -38,14 +39,6 @@ function meadowGrass(blocked: Blocked) {
   }
 }
 
-const SPECKS = ['#ffffff', '#f2eefc', '#e3dcf6', '#d9d2f2', '#fffbe8']
-const DRIFTS = [
-  ['#ff5a5a', '#ff7a6a', '#f04a4a'],
-  ['#6f8cff', '#8aa4ff', '#5f78f0'],
-  ['#c88cff', '#b07af0', '#d9a8ff'],
-  ['#ff8fb8', '#ffb3cf'],
-]
-
 // Pale specks scatter in loose swathes; saturated colours only in tight drifts.
 function meadowFlowers(blocked: Blocked) {
   return (x: number, z: number) => {
@@ -55,8 +48,7 @@ function meadowFlowers(blocked: Blocked) {
     const field = noise.noise(x * 0.18 + 30, z * 0.18) * 0.5 + 0.5
     const big = field > 0.76
     if (!big && rand() > swathe ** 1.5 * 0.8) return null
-    const paletteIdx = Math.floor((noise.noise(x * 0.07, z * 0.07 + 9) * 0.5 + 0.5) * 3.99) % 4
-    return { color: big ? pick(DRIFTS[paletteIdx]) : pick(SPECKS), big }
+    return { color: wildflowerColor(x, z, big), big }
   }
 }
 
@@ -66,31 +58,33 @@ async function build(scene: THREE.Scene, progress: Progress): Promise<World> {
   const updaters: ((t: number, dt: number) => void)[] = []
   scene.add(createGround())
 
+  // Everything that never moves goes in statics, merged into a few draws once built.
+  const statics = new THREE.Group()
   // --- Village plaza at the back ---
-  scene.add(props.cobblestones(PLAZA))
+  statics.add(props.cobblestones(PLAZA))
   const houses: [number, number, props.CottageOptions][] = [
     [-9, -29.5, { w: 7, railing: 1, tags: [0], piece: true }],
     [-1, -30, { w: 6.5, door: 0, pergola: true, tags: [1] }],
     [7.5, -29.5, { w: 7.5, bench: true, railing: 2, tags: [0, 1] }],
     [16, -29, { w: 6, door: 1, piece: true }],
   ]
-  for (const [x, z, o] of houses) scene.add(props.cottage(x, z, o))
+  for (const [x, z, o] of houses) statics.add(props.cottage(x, z, o))
   // Xiaomai's house: the cottage with the pergola, where the last order is bound.
-  scene.add(props.mailbox(...MAILBOX))
-  scene.add(props.stall(...STALL, 0.2, '#d94b4b'))
-  scene.add(props.stringLights([-11, -15], [-2, -25]))
-  scene.add(props.stringLights([3, -16], [13, -25.5], 3.9))
-  scene.add(props.shed(3.2, -16.8, -0.25))
-  scene.add(props.planterBed(8, -17.5, 0.12))
-  scene.add(props.tire(10.2, -16.4))
-  scene.add(props.plasticBarrel(12, -15.8))
-  scene.add(props.roadBarrier(7.4, -13.6, 0.5))
-  scene.add(props.trafficCone(6.2, -14.2))
-  scene.add(props.trafficCone(-2.6, -19.5))
-  scene.add(props.barrel(-8.5, -16, 0, false))
-  scene.add(props.barrel(-7.5, -15.3, 0, false))
-  scene.add(props.fence([[-13, -13.5], [-13, -21], [-12, -26]]))
-  scene.add(props.plankPile(1.5, -21, 0.4))
+  statics.add(props.mailbox(...MAILBOX))
+  statics.add(props.stall(...STALL, 0.2, '#d94b4b'))
+  statics.add(props.stringLights([-11, -15], [-2, -25]))
+  statics.add(props.stringLights([3, -16], [13, -25.5], 3.9))
+  statics.add(props.shed(3.2, -16.8, -0.25))
+  statics.add(props.planterBed(8, -17.5, 0.12))
+  statics.add(props.tire(10.2, -16.4))
+  statics.add(props.plasticBarrel(12, -15.8))
+  statics.add(props.roadBarrier(7.4, -13.6, 0.5))
+  statics.add(props.trafficCone(6.2, -14.2))
+  statics.add(props.trafficCone(-2.6, -19.5))
+  statics.add(props.barrel(-8.5, -16, 0, false))
+  statics.add(props.barrel(-7.5, -15.3, 0, false))
+  statics.add(props.fence([[-13, -13.5], [-13, -21], [-12, -26]]))
+  statics.add(props.plankPile(1.5, -21, 0.4))
 
   // --- Brick walls ---
   const longWall = brickWall(
@@ -100,12 +94,12 @@ async function build(scene: THREE.Scene, progress: Progress): Promise<World> {
   // Barrels continue the wall's line toward the far corner.
   for (let i = 0; i < 6; i++) {
     const t = i / 5
-    scene.add(props.barrel(-10.6 - t * 6.5, -11.7 - t * 3.2, -0.45 + range(-0.08, 0.08)))
+    statics.add(props.barrel(-10.6 - t * 6.5, -11.7 - t * 3.2, -0.45 + range(-0.08, 0.08)))
   }
   brickWall([[2.2, -11.6], [6, -11.2], [10, -11.1], [12.7, -11]], { rows: 4, ruin: 0.35 })
   brickPillar(13.1, -11, { rows: 13 })
   brickPillar(16.3, -11, { rows: 13 })
-  scene.add(props.ironGate(14.7, -11, 0, 2.6))
+  statics.add(props.ironGate(14.7, -11, 0, 2.6))
   const gateWall = brickWall([[16.9, -11], [21, -10.6], [26, -11.5]], { rows: 5 })
   brickWall([[-4.5, -12.3], [-1, -12.1]], { rows: 3, ruin: 0.5 })
   brickPillar(-0.6, -12.1, { rows: 9 })
@@ -121,11 +115,11 @@ async function build(scene: THREE.Scene, progress: Progress): Promise<World> {
   for (const [curve, t, opts] of tags) {
     const p = curve.getPointAt(t)
 
-    scene.add(graffitiOnWall(curve, t, { ...opts, ground: heightAt(p.x, p.z) }))
+    statics.add(graffitiOnWall(curve, t, { ...opts, ground: heightAt(p.x, p.z) }))
   }
 
   // --- Meadow landmarks ---
-  brickArch(5.4, -1.8, 0.25, scene)
+  brickArch(5.4, -1.8, 0.25, statics)
   brickWall([[2.9, -1.2], [1.2, -0.9]], { rows: 4, ruin: 0.4 })
   brickWall([[7.9, -2.4], [9.4, -2.9]], { rows: 3, ruin: 0.5 })
   brickPillar(11.6, 1.2, { rows: 12, tilt: 0.22, dir: 0.4 })
@@ -135,30 +129,30 @@ async function build(scene: THREE.Scene, progress: Progress): Promise<World> {
   fallenChunk(-2.8, 1.4, 1.9, 1.35, 2, 4)
   brickRubble(1.6, 5.4, 8)
   brickRubble(9.3, -2, 6)
-  scene.add(props.utilityPole(9.4, 3.2, 0.3))
-  scene.add(props.utilityPole(14, 15, 0.3))
-  scene.add(props.feedCrate(8, 7, -0.3))
-  scene.add(props.plankPile(-1.4, -8.6, 0.35))
-  scene.add(props.plankPile(-2.6, -7, 0.2))
-  scene.add(props.plankPile(-7.6, -4, 1.1))
-  scene.add(props.fence([[19, 2], [22, 9], [21, 16]]))
+  statics.add(props.utilityPole(9.4, 3.2, 0.3))
+  statics.add(props.utilityPole(14, 15, 0.3))
+  statics.add(props.feedCrate(8, 7, -0.3))
+  statics.add(props.plankPile(-1.4, -8.6, 0.35))
+  statics.add(props.plankPile(-2.6, -7, 0.2))
+  statics.add(props.plankPile(-7.6, -4, 1.1))
+  statics.add(props.fence([[19, 2], [22, 9], [21, 16]]))
 
-  scene.add(createTree(4.6, -8.2, 1.1))
-  scene.add(createTree(-0.8, -5.2, 0.75))
-  scene.add(createTree(20, -6.5, 1.3))
-  scene.add(createTree(-14.5, 3, 1.0))
-  scene.add(createTree(-12, 15, 1.25))
-  scene.add(createTree(17.5, 12.5, 1.15))
-  scene.add(createTree(-4, 19, 1.3))
-  scene.add(createTree(25, 2, 1.4))
-  scene.add(createSapling(2.1, 3.1))
-  scene.add(createSapling(-6.8, 13.5))
+  statics.add(createTree(4.6, -8.2, 1.1))
+  statics.add(createTree(-0.8, -5.2, 0.75))
+  statics.add(createTree(20, -6.5, 1.3))
+  statics.add(createTree(-14.5, 3, 1.0))
+  statics.add(createTree(-12, 15, 1.25))
+  statics.add(createTree(17.5, 12.5, 1.15))
+  statics.add(createTree(-4, 19, 1.3))
+  statics.add(createTree(25, 2, 1.4))
+  statics.add(createSapling(2.1, 3.1))
+  statics.add(createSapling(-6.8, 13.5))
   for (const [x, z, s] of [
     [-2.8, -2.6, 0.9], [6.6, -9.7, 1], [14, -3.5, 1.1], [-8, 7, 1], [18, 7.5, 1.2],
     [-3.2, -10.2, 0.8], [3.3, -2.8, 0.7], [8.2, -1.2, 0.6], [12.5, 9, 0.9], [-1, 15, 1.1],
     [5, 13, 1], [22, -2, 1.3], [-17, 8, 1.2], [10.5, -9.5, 0.8], [0.5, 9.8, 0.7],
   ]) {
-    scene.add(createBush(x, z, s))
+    statics.add(createBush(x, z, s))
   }
 
   const cows = [createCow(-2.4, 9.6, 0.4), createCow(12.6, -7.6, 2.6), createCow(16.5, 4.2, -0.4), createCow(-9.5, -2, 1.8)]
@@ -181,7 +175,8 @@ async function build(scene: THREE.Scene, progress: Progress): Promise<World> {
     updaters.push(a.update)
   }
 
-  scene.add(flushBricks())
+  statics.add(flushBricks())
+  scene.add(batchStatic(statics), statics)
 
   await progress(0.3, text.loading.meadow.grass)
   // --- Foliage last, so it can avoid every prop's footprint ---

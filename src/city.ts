@@ -1095,39 +1095,3 @@ export function toppledTower({ x, z, rotY, w, d, floors }: { x: number; z: numbe
   const to: XZ = [x + dir.x * at, z + dir.z * at]
   return { group: g, from, to, halfWidth: w / 2 }
 }
-
-/**
- * Merge every static single-material mesh under root into one mesh per material per ground
- * cell, baking world transforms. Hundreds of facade boxes become a few draw calls, while
- * cells off screen (or outside the sun's shadow box) are still culled whole.
- */
-export function batchStatic(root: THREE.Object3D, cell = 40) {
-  root.updateMatrixWorld(true)
-  const buckets = new Map<string, { material: THREE.Material; list: THREE.BufferGeometry[] }>()
-  const doomed: THREE.Object3D[] = []
-  const centre = new THREE.Vector3()
-  root.traverse((o) => {
-    if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material) || o.userData.dynamic) return
-    const material: THREE.Material = o.material
-    const geo: THREE.BufferGeometry = o.geometry.clone()
-    geo.applyMatrix4(o.matrixWorld)
-    for (const name of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(name)) geo.deleteAttribute(name)
-    geo.computeBoundingBox()
-    geo.boundingBox!.getCenter(centre)
-    const key = `${material.uuid}:${Math.floor(centre.x / cell)},${Math.floor(centre.z / cell)}`
-    let bucket = buckets.get(key)
-    if (!bucket) buckets.set(key, (bucket = { material, list: [] }))
-    bucket.list.push(geo.index ? geo.toNonIndexed() : geo)
-    doomed.push(o)
-  })
-
-  for (const o of doomed) o.removeFromParent()
-  const out = new THREE.Group()
-  for (const { material, list } of buckets.values()) {
-    const mesh = new THREE.Mesh(mergeGeometries(list), material)
-    mesh.castShadow = true
-    mesh.receiveShadow = true
-    out.add(mesh)
-  }
-  return out
-}

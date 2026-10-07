@@ -171,11 +171,62 @@ export interface FlowerOptions {
   place(x: number, z: number): { color: THREE.ColorRepresentation; big?: boolean } | null
 }
 
+// Pale specks scatter on their own; drifts mix their own hue with daisies and a few strays,
+// like a sown wildflower patch rather than a bed of one colour.
+const SPECKS = ['#ffffff', '#f6f2ea', '#ece6f6', '#fffbe8']
+const DRIFTS = [
+  ['#e8452f', '#f25c3c', '#d93a2a'],
+  ['#4f70f0', '#6a88ff', '#5a64e0'],
+  ['#c88cff', '#b07af0'],
+  ['#ff94bc', '#ffb3cf'],
+]
+export function wildflowerColor(x: number, z: number, big: boolean) {
+  if (!big) return pick(SPECKS)
+  const own = Math.floor((noise.noise(x * 0.07, z * 0.07 + 9) * 0.5 + 0.5) * 3.99) % 4
+  const r = rand()
+  if (r < 0.55) return pick(DRIFTS[own])
+  if (r < 0.8) return pick(SPECKS)
+  return pick(pick(DRIFTS))
+}
+
+// Round open bloom facing up: scalloped petals around a warm centre, tinted by the instance.
+function bloomGeometry(r: number, petals: number) {
+  const pos = [0, 0.004, 0]
+  const col = [1, 0.82, 0.35]
+  const idx = []
+  for (let k = 0; k < petals * 2; k++) {
+    const a = (k / (petals * 2)) * Math.PI * 2
+    const rr = k % 2 ? r * 0.78 : r
+    // Petal tips curl up a little so the bloom reads as a cup, not a disc.
+    pos.push(Math.cos(a) * rr, r * 0.15, Math.sin(a) * rr)
+    col.push(1, 1, 1)
+    idx.push(0, 1 + ((k + 1) % (petals * 2)), 1 + k)
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3))
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(pos.length / 3).fill([0, 1, 0]).flat(), 3))
+  g.setIndex(idx)
+  return g
+}
+
+// Stem bowing out from the root to the bloom at `top`.
+function stemGeometry(top: THREE.Vector3) {
+  const mid = new THREE.Vector3(top.x * 0.2, top.y * 0.55, top.z * 0.2)
+  return new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(new THREE.Vector3(), mid, top), 2, 0.004, 3)
+}
+
 export function createFlowers({ bounds, target, place }: FlowerOptions) {
   const [minX, maxX, minZ, maxZ] = bounds
-  const head = new THREE.IcosahedronGeometry(0.04, 0).scale(1, 0.6, 1).translate(0, 0.34, 0)
-  const stem = new THREE.CylinderGeometry(0.005, 0.005, 0.34, 3).translate(0, 0.17, 0)
-  const geo = mergeGeometries([head, stem.toNonIndexed()])
+  // A main bloom on a curved stem plus a smaller one lower down on a side shoot, so each
+  // plant reads as a little sprig rather than a ball on a pin.
+  const main = new THREE.Vector3(0.03, 0.3, 0)
+  const side = new THREE.Vector3(-0.06, 0.2, 0.04)
+  const heads = mergeGeometries([
+    bloomGeometry(0.055, 8).rotateZ(-0.25).translate(main.x, main.y, main.z),
+    bloomGeometry(0.038, 8).rotateX(0.3).rotateZ(0.35).translate(side.x, side.y, side.z),
+  ])
+  const stems = mergeGeometries([stemGeometry(main), stemGeometry(side)])
   const entries: Instance[] = []
   for (let tries = 0; tries < target * 8 && entries.length < target; tries++) {
     const x = range(minX, maxX)
@@ -183,14 +234,23 @@ export function createFlowers({ bounds, target, place }: FlowerOptions) {
     const bloom = place(x, z)
     if (!bloom) continue
     dummy.position.set(x, heightAt(x, z), z)
-    dummy.rotation.set(0, rand() * 6, 0)
-    const sc = bloom.big ? range(0.9, 1.4) : range(0.6, 1)
-    dummy.scale.set(sc, range(1.0, 1.5), sc)
+    dummy.rotation.set(range(-0.2, 0.2), rand() * 6, range(-0.2, 0.2))
+    const sc = bloom.big ? range(1.0, 1.4) : range(0.7, 1.05)
+    // Most heads sit among the grass tips; only some stand clear of it.
+    dummy.scale.set(sc, range(0.9, 1.4), sc)
     dummy.updateMatrix()
     color.set(bloom.color)
     entries.push({ x, z, matrix: dummy.matrix.clone(), color: color.clone() })
   }
-  return tiledInstances(geo, applyWind(new THREE.MeshStandardMaterial({ roughness: 0.7 }), { strength: 0.18, heightRef: 0.35 }), entries)
+  // Heads and stems share transforms and wind, so the stem stays green whatever the bloom.
+  const wind = { strength: 0.18, heightRef: 0.3 }
+  const untinted = new THREE.Color(1, 1, 1)
+  const g = new THREE.Group()
+  g.add(
+    tiledInstances(heads, applyWind(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.7 }), wind), entries),
+    tiledInstances(stems, applyWind(new THREE.MeshStandardMaterial({ color: '#4a7a2a', roughness: 0.85 }), wind), entries.map((e) => ({ ...e, color: untinted }))),
+  )
+  return g
 }
 
 // Lupine spikes: a dense tapering column of florets over a stem with palmate leaves.
@@ -427,11 +487,19 @@ function canopy(masses: Mass[], twigs: number, twigSize: number, tint = 0) {
   return core
 }
 
+// Bark shared by colour, so every trunk in a scene can merge into one draw.
+const barks = new Map<THREE.ColorRepresentation, THREE.MeshStandardMaterial>()
+function barkMaterial(color: THREE.ColorRepresentation) {
+  let m = barks.get(color)
+  if (!m) barks.set(color, (m = new THREE.MeshStandardMaterial({ color, roughness: 1 })))
+  return m
+}
+
 // Slim trunk that forks into a few branches reaching up into the crown.
 function trunk(height: number, radius: number, color: THREE.ColorRepresentation, branches: { len: number; y: number; tilt: number; dir: number }[]) {
 
   const g = new THREE.Group()
-  const bark = new THREE.MeshStandardMaterial({ color, roughness: 1 })
+  const bark = barkMaterial(color)
   const main = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.55, radius, height, 6).translate(0, height / 2, 0), bark)
   main.castShadow = true
   g.add(main)

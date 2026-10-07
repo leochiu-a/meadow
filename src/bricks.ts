@@ -17,7 +17,7 @@ const e = new THREE.Euler()
 // Painted-brick material: continuous meshes carry metre-based UVs and the shader draws
 // staggered courses, per-brick tint, dark mortar joints and a weathered top.
 const brickWalls: THREE.Object3D[] = []
-export function brickMaterial(base = '#94503c') {
+export function brickMaterial(base = '#a65a42') {
   // Double-sided so end-cap winding never matters; three flips the normal for back faces.
   const m = new THREE.MeshStandardMaterial({ color: base, roughness: 0.95, side: THREE.DoubleSide })
   m.onBeforeCompile = (shader) => {
@@ -46,19 +46,29 @@ export function brickMaterial(base = '#94503c') {
         vec2 id = floor(b);
         vec2 f = fract(b);
         float joint = min(min(f.x, 1.0 - f.x) * bsz.x, min(f.y, 1.0 - f.y) * bsz.y);
-        float mortar = 1.0 - smoothstep(0.006, 0.02, joint);
+        float mortar = 1.0 - smoothstep(0.004, 0.014, joint);
         float v1 = bHash(id);
         float v2 = bHash(id + 17.0);
         vec3 tint = mix(vec3(0.92, 0.94, 0.97), vec3(1.07, 1.0, 0.94), v1) * (0.92 + 0.14 * v2);
+        // Each course fired a shade apart, so the courses read as soft horizontal bands.
+        tint *= 0.95 + 0.1 * bHash(vec2(3.1, id.y));
         vec3 brick = diffuseColor.rgb * tint;
+        // Hand-painted look: long soft dabs laid along the courses, warm where the brush was
+        // loaded and dull where it ran dry, and the mortar lines broken where a stroke crossed.
+        float warp = bNoise(vBrickUv * 3.0);
+        float dab = bNoise(vec2(vBrickUv.x * 2.4 + warp * 1.6, vBrickUv.y * 10.0));
+        float fleck = bNoise(vec2(vBrickUv.x * 6.0 - warp, vBrickUv.y * 24.0) + 7.0);
+        float paint = smoothstep(0.38, 0.62, dab) * 0.65 + smoothstep(0.45, 0.6, fleck) * 0.35;
+        brick *= mix(vec3(0.8, 0.83, 0.9), vec3(1.18, 1.04, 0.88), paint);
+        mortar *= 0.45 + 0.55 * smoothstep(0.3, 0.7, fleck);
         // Broad weathering blotches rather than fine grain, so the wall reads painted.
         float weather = bNoise(vBrickW.xz * 1.1 + vBrickW.y * 1.7);
         brick *= 0.88 + 0.22 * weather;
-        diffuseColor.rgb = mix(brick, diffuseColor.rgb * 0.72, mortar * 0.8);
+        diffuseColor.rgb = mix(brick, diffuseColor.rgb * 0.62, mortar * 0.42);
         // Pitted surface and soot-dark grime wicking up from the ground.
         float pit = bNoise(vBrickW.xy * 31.0 + vBrickW.z * 17.0) * 0.5 + bNoise(vBrickW.zy * 23.0) * 0.5;
-        diffuseColor.rgb *= 0.84 + 0.26 * pit;
-        float soot = (1.0 - smoothstep(0.0, 0.9, vBrickW.y)) * 0.5 + smoothstep(0.6, 0.9, bNoise(vBrickW.xz * 0.8 + vBrickW.y * 0.6)) * 0.3;
+        diffuseColor.rgb *= 0.96 + 0.07 * pit;
+        float soot = (1.0 - smoothstep(0.0, 0.6, vBrickW.y)) * 0.3 + smoothstep(0.6, 0.9, bNoise(vBrickW.xz * 0.8 + vBrickW.y * 0.6)) * 0.18;
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.11, 0.08), soot);
         float faceUp = smoothstep(0.6, 0.95, vBrickN.y);
         // Odd bricks spalled or swapped for a different batch.
@@ -71,7 +81,8 @@ export function brickMaterial(base = '#94503c') {
         float render = smoothstep(0.8, 0.84, bNoise(vBrickW.xy * 2.2 + vBrickW.z * 1.7 + 30.0) * 0.85 + pit * 0.2);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.55, 0.5, 0.43) * (0.75 + 0.4 * pit), render * 0.8 * (1.0 - faceUp));
         float up = smoothstep(0.6, 0.95, vBrickN.y);
-        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.33))) * vec3(1.05, 0.9, 0.82), up * 0.35);
+        // Tops bleached and dusty from sitting in the sun.
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.33))) * vec3(1.3, 1.1, 0.98), up * 0.4);
         // Moss creeping up from the ground and settling on top.
         float mossN = bNoise(vBrickW.xz * 2.3 + vBrickW.y * 2.0) * 0.7 + bNoise(vBrickW.xz * 7.0 - vBrickW.y * 5.0) * 0.3;
         float base = 1.0 - smoothstep(0.0, 0.55, vBrickW.y);
@@ -94,6 +105,14 @@ export function brickMaterial(base = '#94503c') {
         }`,
       )
   }
+  return m
+}
+
+// The meadow's walls share one material per colour, so they merge into a few draws.
+const shared = new Map<string, THREE.MeshStandardMaterial>()
+export function sharedBrick(base = '#a65a42') {
+  let m = shared.get(base)
+  if (!m) shared.set(base, (m = brickMaterial(base)))
   return m
 }
 
@@ -180,7 +199,7 @@ export function brickWall(points: readonly (readonly [number, number])[], { rows
     const n = Math.sin(t * length * 0.9 + seed) * 0.5 + Math.sin(t * length * 2.3 + seed * 2) * 0.3
     return Math.max(0.35, H * (1 - ruin * Math.max(0, n + 0.2)))
   }
-  const mesh = new THREE.Mesh(sweepWall(curve, thickness, heights), brickMaterial())
+  const mesh = new THREE.Mesh(sweepWall(curve, thickness, heights), sharedBrick())
   mesh.castShadow = true
   mesh.receiveShadow = true
   brickWalls.push(mesh)
@@ -232,11 +251,11 @@ function boxWithMetreUVs(w: number, h: number, d: number, r = 0.06) {
 export function brickPillar(x: number, z: number, { rows = 12, size = 0.7, tilt = 0, dir = 0, cap = true } = {}) {
   const g = new THREE.Group()
   const h = rows * 0.25
-  const body = new THREE.Mesh(boxWithMetreUVs(size, h, size), brickMaterial('#8f4a38'))
+  const body = new THREE.Mesh(boxWithMetreUVs(size, h, size), sharedBrick('#a65840'))
   body.position.y = h / 2 - 0.15
   g.add(body)
   if (cap) {
-    const ledge = new THREE.Mesh(boxWithMetreUVs(size + 0.14, 0.2, size + 0.14), brickMaterial('#7e4636'))
+    const ledge = new THREE.Mesh(boxWithMetreUVs(size + 0.14, 0.2, size + 0.14), sharedBrick('#9a5340'))
     ledge.position.y = h - 0.05
     g.add(ledge)
   }
@@ -254,7 +273,7 @@ export function brickPillar(x: number, z: number, { rows = 12, size = 0.7, tilt 
 
 // Brick culvert: one thick, bevelled barrel vault with a dark mouth, worn smooth like the
 // reference's ruined arch rather than built brick by brick.
-export function brickArch(x: number, z: number, rotY: number, scene: THREE.Scene) {
+export function brickArch(x: number, z: number, rotY: number, parent: THREE.Object3D) {
 
   const group = new THREE.Group()
   const radius = 0.9
@@ -280,7 +299,7 @@ export function brickArch(x: number, z: number, rotY: number, scene: THREE.Scene
     curveSegments: 24,
   })
   geo.translate(0, 0, -(depth - 0.16) / 2)
-  const vault = new THREE.Mesh(geo, brickMaterial('#8e4e3c'))
+  const vault = new THREE.Mesh(geo, sharedBrick('#8e4e3c'))
   const ground = heightAt(x, z)
   vault.position.set(x, ground, z)
   vault.rotation.y = rotY
@@ -298,7 +317,7 @@ export function brickArch(x: number, z: number, rotY: number, scene: THREE.Scene
   floor.rotation.set(-Math.PI / 2, 0, rotY)
   floor.position.set(x, ground + 0.02, z)
   group.add(floor)
-  scene.add(group)
+  parent.add(group)
   const dx = Math.cos(rotY)
   const dz = -Math.sin(rotY)
   addSegment(x - dx * 1.6, z - dz * 1.6, x + dx * 1.6, z + dz * 1.6, depth * 0.5)
@@ -324,7 +343,7 @@ export function brickRubble(x: number, z: number, count = 10) {
 export function fallenChunk(x: number, z: number, rotY: number, tilt = 1.1, rows = 3, cols = 3) {
   const w = cols * 0.48
   const h = rows * 0.25
-  const chunk = new THREE.Mesh(boxWithMetreUVs(w, h, 0.7), brickMaterial())
+  const chunk = new THREE.Mesh(boxWithMetreUVs(w, h, 0.7), sharedBrick())
   chunk.geometry.translate(0, h / 2, 0)
   chunk.position.set(x, heightAt(x, z) - 0.05, z)
   chunk.rotation.set(tilt, rotY, range(-0.15, 0.15), 'YXZ')
