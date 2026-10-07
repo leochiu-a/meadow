@@ -4,6 +4,7 @@ import type { Progress } from './loading.ts'
 import type { MinimapSpec } from './minimap.ts'
 import type { Stray } from './strays.ts'
 import type { Ambience } from './audio.ts'
+import type { SkyLook } from './sky.ts'
 
 // What a scene module provides (meadow.ts, ximending.ts) and what its build hands back to
 // main.ts: the shared contract between the scenes and the story's pieces.
@@ -62,6 +63,8 @@ export interface World {
 export interface Look {
   background: THREE.ColorRepresentation
   fog: [color: THREE.ColorRepresentation, near: number, far: number]
+  // Scenes open to the horizon paint a sky and distant hills past the world's edge.
+  sky?: SkyLook
   hemi: [sky: THREE.ColorRepresentation, ground: THREE.ColorRepresentation, intensity: number]
   sun: [color: THREE.ColorRepresentation, intensity: number]
   sunDirection: THREE.Vector3

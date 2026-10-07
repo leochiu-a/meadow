@@ -7,6 +7,7 @@ import { windUniforms } from './wind.ts'
 import { createAudio } from './audio.ts'
 import { cutUniforms } from './cutaway.ts'
 import { createMinimap } from './minimap.ts'
+import { createSky } from './sky.ts'
 import { createOrbit } from './orbit.ts'
 import { createWeather, createRain, applyWet, overcastEnvironment } from './weather.ts'
 import { createScavenge, foundIn } from './scavenge.ts'
@@ -70,6 +71,8 @@ const background = new THREE.Color(look.background)
 const fog = new THREE.Fog(...look.fog)
 scene.background = background
 scene.fog = fog
+const sky = look.sky ? createSky(look.sky, fog) : null
+if (sky) scene.add(sky.object)
 
 // The far plane stops at the fog's end: nothing past it is visible anyway.
 const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 1, look.fog[2] + 5)
@@ -353,6 +356,7 @@ function step(dt: number) {
   fog.color.copy(dry.fog).lerp(STORM_GREY, r * 0.75)
   fog.near = dry.near * (1 - 0.35 * r)
   fog.far = dry.far * (1 - 0.2 * r)
+  sky?.update(t, camera, r, STORM_GREY)
 
   hemi.intensity = dry.hemi * (1 - 0.15 * r) + weather.flash * 2.5
   sun.intensity = dry.sun * (1 - 0.75 * r)

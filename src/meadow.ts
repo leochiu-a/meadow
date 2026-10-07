@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { heightAt, setTerrain, noise, rand, range } from './terrain.ts'
-import { meadowTerrain, createGround, surfaceAt, grassColor, PLAZA } from './meadow-terrain.ts'
+import { meadowTerrain, createGround, createFarField, surfaceAt, grassColor, PLAZA } from './meadow-terrain.ts'
 import { buildBlockers } from './collision.ts'
 import { createNavGrid } from './walkmap.ts'
 import { batchStatic } from './batch.ts'
@@ -56,7 +56,7 @@ async function build(scene: THREE.Scene, progress: Progress): Promise<World> {
   await progress(0, text.loading.meadow.ground)
   setTerrain(meadowTerrain)
   const updaters: ((t: number, dt: number) => void)[] = []
-  scene.add(createGround())
+  scene.add(createGround(), createFarField())
 
   // Everything that never moves goes in statics, merged into a few draws once built.
   const statics = new THREE.Group()
@@ -248,6 +248,7 @@ export default {
   look: {
     background: '#8fbf4a',
     fog: ['#a9cc62', 55, 130],
+    sky: { zenith: '#6fa8dc', haze: '#e6eed6', hills: ['#5f8f4a', '#3f6b2e'] },
     hemi: ['#a8dcff', '#5f8f30', 1.05],
     sun: ['#ffd49a', 4.6],
     sunDirection: new THREE.Vector3(-12, 13, -9).normalize(),

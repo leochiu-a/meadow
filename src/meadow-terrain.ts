@@ -112,4 +112,18 @@ export function createGround() {
   return mesh
 }
 
+// Plain grass from the ground's edge out past the fog, so the world never ends in a cliff.
+export function createFarField() {
+  const outer = WORLD_SIZE * 4
+  const half = WORLD_SIZE / 2
+  const shape = new THREE.Shape([[-outer, -outer], [outer, -outer], [outer, outer], [-outer, outer]].map(([x, y]) => new THREE.Vector2(x, y)))
+  shape.holes.push(new THREE.Path([[-half, -half], [-half, half], [half, half], [half, -half]].map(([x, y]) => new THREE.Vector2(x, y))))
+  const geo = new THREE.ShapeGeometry(shape)
+  geo.rotateX(-Math.PI / 2)
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: tmp.copy(C.grassA).lerp(C.grassB, 0.5).multiplyScalar(0.9), roughness: 1 }))
+  mesh.receiveShadow = true
+  mesh.name = 'far-field'
+  return mesh
+}
+
 export const meadowTerrain = { heightAt: meadowHeight }
