@@ -137,6 +137,8 @@ const story = createStory(sceneName, world.landmarks, {
   letGo: () => audio.release(),
   song: () => audio.song('box'),
   hasLetters: () => found.meadow.has('letter'),
+  boot: () => audio.boot(),
+  blip: (warn) => audio.blip(warn),
 })
 // Recordings pan to the screen: `right` is the camera's rightward direction on the ground.
 const echoes = createEchoes({ echo: (id, where) => audio.echo(id, { ...where, right: [Math.cos(orbit.yaw), -Math.sin(orbit.yaw)] }) }, world.echoes, {
@@ -203,8 +205,9 @@ const startAudio = () => {
   audio.start()
   byId('hint').classList.add('dim')
 }
-addEventListener('pointerdown', startAudio, { once: true })
-addEventListener('keydown', startAudio, { once: true })
+// Capture phase: panels that stop their clicks (the story log, the book) still count as the gesture.
+addEventListener('pointerdown', startAudio, { once: true, capture: true })
+addEventListener('keydown', startAudio, { once: true, capture: true })
 
 // Switching scenes reloads the page: each scene owns the terrain and colliders it builds.
 const sceneButton = byId('scene')

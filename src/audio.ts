@@ -52,6 +52,7 @@ interface Sfx {
   motorA: OscillatorNode
   motorB: OscillatorNode
   motorGain: GainNode
+  rollGain: GainNode
   pluck: GainNode
   rainGain: GainNode
 }
@@ -66,12 +67,14 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
   let master!: GainNode
   let enabled = true
   let started = false
+  // The robot woke before sound was allowed: it powers up audibly on the first gesture instead.
+  let bootPending = false
   let sfx!: Sfx
   // Volume per channel plus 'master'; the user's mixer settings, applied once audio exists.
   const level = { ...DEFAULT_LEVELS, ...levels }
   // Each channel: dry goes straight out, wet also feeds the room reverb.
   let bus!: Record<Channel, { dry: GainNode; wet: GainNode }>
-  const timers = { bird: 2, creak: 6, rattle: 14, crow: 9 }
+  const timers = { bird: 2, creak: 6, rattle: 14, crow: 9, wheel: 0 }
   const animalTimers = new Map<PointXZ, number>()
 
   // Until when (audio clock) the mix stays ducked.
@@ -204,6 +207,15 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
     motorFilter.connect(motorGain).connect(bus.robot.wet)
     motorA.start()
     motorB.start()
+    // Tyres on the ground: grit on the city's cracked asphalt, a swish through the meadow's grass.
+    const roll = loopNoise(city ? 'brown' : 'white', 3)
+    const rollFilter = ctx.createBiquadFilter()
+    rollFilter.type = 'bandpass'
+    rollFilter.frequency.value = city ? 420 : 2400
+    rollFilter.Q.value = city ? 0.9 : 0.6
+    const rollGain = ctx.createGain()
+    rollGain.gain.value = 0
+    roll.connect(rollFilter).connect(rollGain).connect(bus.robot.dry)
 
     const rainGain = buildRain()
 
@@ -214,7 +226,7 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
     pluckTone.type = 'lowpass'
     pluckTone.frequency.value = 2600
     pluck.connect(pluckTone).connect(bus.ui.wet)
-    sfx = { click, motorA, motorB, motorGain, pluck, rainGain }
+    sfx = { click, motorA, motorB, motorGain, rollGain, pluck, rainGain }
 
     if (music) playMusic(music)
   }
@@ -494,6 +506,73 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
     }
   }
 
+  // An old wheel going over a seam: a dull knock, now and then a loose rattle.
+  function knock(speed: number) {
+    const t = ctx.currentTime
+    const src = ctx.createBufferSource()
+    src.buffer = sfx.click
+    src.playbackRate.value = rand(0.35, 0.6)
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = rand(500, 900)
+    bp.Q.value = 2
+    const g = ctx.createGain()
+    g.gain.value = (0.12 + speed * 0.16) * (Math.random() < 0.15 ? 1.6 : 1)
+    src.connect(bp).connect(g).connect(bus.robot.dry)
+    src.start(t)
+  }
+
+  // Booting up, in under a second so it lands with the line: a relay clicks, the power
+  // rises through a hum, and the self-test beeps.
+  function boot() {
+    const t = ctx.currentTime + 0.01
+    const relay = ctx.createBufferSource()
+    relay.buffer = sfx.click
+    const relayTone = ctx.createBiquadFilter()
+    relayTone.type = 'highpass'
+    relayTone.frequency.value = 1200
+    const relayGain = ctx.createGain()
+    relayGain.gain.value = 0.5
+    relay.connect(relayTone).connect(relayGain).connect(bus.ui.wet)
+    relay.start(t)
+    const hum = ctx.createOscillator()
+    hum.type = 'sawtooth'
+    hum.frequency.setValueAtTime(55, t)
+    hum.frequency.exponentialRampToValueAtTime(220, t + 0.5)
+    const humTone = ctx.createBiquadFilter()
+    humTone.type = 'lowpass'
+    humTone.frequency.setValueAtTime(250, t)
+    humTone.frequency.exponentialRampToValueAtTime(1400, t + 0.5)
+    const humGain = ctx.createGain()
+    humGain.gain.setValueAtTime(0.0001, t)
+    humGain.gain.exponentialRampToValueAtTime(0.07, t + 0.08)
+    humGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.9)
+    hum.connect(humTone).connect(humGain).connect(bus.ui.wet)
+    hum.start(t)
+    hum.stop(t + 1)
+    ;[0, 0.13].forEach((at) => tone(1046, t + 0.55 + at, 0.07, 0.05, 'square'))
+  }
+
+  // A line printed to the robot's log: a quick chatter of data, or a low two-tone for a warning.
+  function blip(warn: boolean) {
+    const t = ctx.currentTime + 0.01
+    if (warn) [523, 392].forEach((f, i) => tone(f, t + i * 0.12, 0.1, 0.05, 'square'))
+    else for (let i = 0; i < 4; i++) tone(rand(1800, 3200), t + i * 0.035, 0.02, 0.025, 'square')
+  }
+
+  function tone(freq: number, when: number, length: number, peak: number, type: OscillatorType = 'sine') {
+    const osc = ctx.createOscillator()
+    osc.type = type
+    osc.frequency.value = freq
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, when)
+    g.gain.exponentialRampToValueAtTime(peak, when + 0.005)
+    g.gain.exponentialRampToValueAtTime(0.0001, when + length)
+    osc.connect(g).connect(bus.ui.dry)
+    osc.start(when)
+    osc.stop(when + length + 0.02)
+  }
+
   // Radar beep: brighter and higher the closer the relic.
   function ping(signal: number) {
     const t = ctx.currentTime
@@ -601,7 +680,10 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
       if (!ctx) build()
       if (ctx.state === 'suspended') ctx.resume()
       started = true
-      master.gain.setTargetAtTime(masterTarget(), ctx.currentTime, 0.4)
+      // A quick fade in: the first sound is often the robot's, right on the gesture.
+      master.gain.setTargetAtTime(masterTarget(), ctx.currentTime, 0.03)
+      if (bootPending && enabled) boot()
+      bootPending = false
     },
     toggle() {
       // The very first press only unlocks audio; later presses mute/unmute.
@@ -681,6 +763,13 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
     chime() {
       if (started && enabled) chime()
     },
+    boot() {
+      if (!started) bootPending = true
+      else if (enabled) boot()
+    },
+    blip(warn = false) {
+      if (started && enabled) blip(warn)
+    },
     update(dt: number, { listener, robotSpeed, voices = {}, rain = 0 }: { listener: PointXZ; robotSpeed: number; voices?: Voices; rain?: number }) {
       if (!started || !enabled) return
       const now = ctx.currentTime
@@ -691,7 +780,14 @@ export function createAudio(ambience: Ambience = 'meadow', music: string | null 
       sfx.rainGain.gain.setTargetAtTime(rain * 0.9, now, 0.5)
       sfx.motorA.frequency.setTargetAtTime(70 + robotSpeed * 55, now, 0.05)
       sfx.motorB.frequency.setTargetAtTime(141 + robotSpeed * 90, now, 0.05)
-      sfx.motorGain.gain.setTargetAtTime(robotSpeed * 0.035, now, 0.08)
+      sfx.motorGain.gain.setTargetAtTime(robotSpeed * 0.045, now, 0.08)
+      sfx.rollGain.gain.setTargetAtTime(robotSpeed * (city ? 0.4 : 0.15), now, 0.08)
+      // The wheels knock faster the faster it rolls.
+      timers.wheel -= dt
+      if (robotSpeed > 0.15 && timers.wheel <= 0) {
+        timers.wheel = rand(0.22, 0.32) / robotSpeed
+        knock(robotSpeed)
+      }
 
       // Birds keep quiet in the rain.
       timers.bird -= dt * (1 - rain)

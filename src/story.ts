@@ -43,7 +43,7 @@ function load(): StoryState {
  * sceneName and its landmarks ({ finale, wake }). hooks: goTo(scene) to travel on;
  * beginRoutine() for the robot's day; play(id) → Promise to play a recording; letGo() to
  * release the recordings; song() for the music box; hasLetters() whether Xiaomai's letters
- * have been found.
+ * have been found; boot() as the robot wakes; blip(warn) as each system line prints.
  */
 export interface StoryHooks {
   goTo(scene: SceneName): void
@@ -52,6 +52,8 @@ export interface StoryHooks {
   letGo(): void
   song(): void
   hasLetters(): boolean
+  boot(): void
+  blip(warn: boolean): void
 }
 
 // What runs once a script's last line is dismissed, and the prompt shown for it.
@@ -135,6 +137,7 @@ export function createStory(sceneName: SceneName, landmarks: Landmarks = {}, hoo
       )
     } else if ('sys' in s) {
       el.className = `sys${s.warn ? ' warn' : ''}`
+      hooks.blip(!!s.warn)
       el.textContent = `> ${s.sys}`
     } else {
       el.className = 'line'
@@ -212,6 +215,7 @@ export function createStory(sceneName: SceneName, landmarks: Landmarks = {}, hoo
       if (sceneName === 'ximending' && !state.woke) {
         state.woke = true
         save()
+        hooks.boot()
         play('wake', { run: hooks.beginRoutine })
       } else if (sceneName === 'ximending' && !state.begun) hooks.beginRoutine()
       else if (sceneName === 'meadow' && state.city && !state.arrived) {
