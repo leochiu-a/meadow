@@ -299,7 +299,8 @@ function step(dt: number) {
   scavenge.update(t, dt, robot.position, !robot.touring, goal, echoes.beacons(), radar)
   echoes.update(robot.position, story.playing || titled)
   story.update(robot.position, !robot.touring)
-  notebook.setRadar(radar)
+  // Before then the pill still shows once something is found, so the finds can be looked over.
+  notebook.setRadar(radar || scavenge.found.size > 0)
   notebook.setSignal(scavenge.signal)
   notebook.setObjective(goal?.label)
   world.update(t, dt, robot.position)

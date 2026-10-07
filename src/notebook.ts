@@ -187,7 +187,7 @@ export function createNotebook({ relics, echoes, found, heard, shown, released, 
       bars.forEach((b, i) => b.classList.toggle('on', i < lit))
       radar.classList.toggle('hot', s > 0.75)
     },
-    // The radar only appears once the story has begun.
+    // Whether the pill is on screen.
     setRadar(on: boolean) {
       radar.classList.toggle('hidden', !on)
     },
